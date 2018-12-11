@@ -33,40 +33,37 @@ using namespace std;
 }
 
 struct ChunkMap{
-	int radius;
-	vector<Vector3> sphere;
-	map<int, map<int, int>> count;
+	int radius;	// Variable storing the radius of the sphere
+	vector<Vector3> sphere; // Array storing the elements which make up the sphere
+	map<int, map<int, int>> index; // Index of element count of each point on an x-y slice through the sphere
+
+	/*
+	FUNCTION:          CONSTRUCTOR(Vector3 origin, int radius)
+	DESCRIPTION:       Creates the sphere (centered at <origin> of radius <radius>)
+						and indexes the elements
+	*/
 	ChunkMap(Vector3 origin, int _radius) : radius(_radius) {
 		initSphere(origin);
-		time(initCount());
+		time(initIndex());
+		cout << endl;
 	}
+
+	/*
+	FUNCTION:          DESTRUCTOR()
+	DESCRIPTION:       Cleans up the array and index
+	*/
 	~ChunkMap(){
 		sphere.clear();
 		for(int i = -radius; i <= radius; i++)
-			count[i].clear();
-		count.clear();
+			index[i].clear();
+		index.clear();
 	}
 
-	Vector3 getPoint(const Vector3& search){
-		int max = count[-int(search.x)][-int(search.y)], min = count[-int(search.x)][-int(search.y)-1];
-
-		for(int i = min; i < max; i++){
-			auto equals = [](Vector3 a, Vector3 b){
-				if(int(a.x) != int(b.x)) return false;
-				if(int(a.y) != int(b.y)) return false;
-				if(int(a.z) != int(b.z)) return false;
-				return true;
-			};
-
-			if(equals(sphere[i], search))
-				return sphere[i];
-		}
-		return Vector3(-99, -99, -99);
-	}
 	/*
-	FUNCTION:          getSphere(Vector3 origin)
+	FUNCTION:          initSphere(Vector3 origin)
 	DESCRIPTION:       Generates an array representing a sphere of integer points with radius <radius
 	NOTES:			   All points are integer offsets from the origin
+						Array is sorted by x's, then y's, then z's
 	*/
 	void initSphere(Vector3 origin){
 		// Clear sphere (reallocating)
@@ -83,7 +80,7 @@ struct ChunkMap{
 			for(int y = 0; y <= radius * 2; y++){
 				for(int z = 0; z <= radius * 2; z++){
 					/*
-						We are comparing radius sqaured to the distance with no sqrt because
+						We are comparing radius squared to the distance with no sqrt because
 						square rooting is more expensive than multiplying
 					*/
 					// Ignore points not inside sphere
@@ -105,23 +102,111 @@ struct ChunkMap{
 		}
 	}
 
-	void initCount(){
-		cout << "Caching";
-		// Loop through x axis
+	/*
+	FUNCTION:          initIndex()
+	DESCRIPTION:       Indexes the array
+	*/
+	void initIndex(){
+		cout << "Caching"; // Print loading message
+		// Loop through x and y axises...
 		for(int x = -radius, total = 0; x <= radius; x++){
-			// Loop through y axis
 			for(int y = -radius; y <= radius; y++)
-				// If the point is within the sphere
+				// If the point is within the sphere...
 				if(dist(Vector3(x, y, 0), Vector3()) <= (radius * radius)){
-					// Store a count of the total elements so fars
+					// Store a count of the total elements so far
 					for(Vector3 cur: sphere)
 						if(cur.y == y && cur.x == x)
 							total++;
-					count[x][y] = total;
+					index[x][y] = total;
 				}
+			// Print loading message
 			cout << "..." << x; if(!(x % 10)) cout << flush;
 		}
-		cout << endl;
+	}
+
+	/*
+	FUNCTION:          getPoint(const Vector3& search)
+	DESCRIPTION:       Gets a element stored at the provided search point
+	RETURNS: 		   The element
+	*/
+	inline Vector3 getPoint(const Vector3 search){
+		/*
+			This algorithm narrows its results to a single z-axis column (from the index)
+			and then looks for the point.
+			At worst it will search through 2r + 1 elements
+		*/
+		int max = index[-int(search.x)][-int(search.y)], // Element index of the end of search range
+			min = index[-int(search.x)][-int(search.y)-1]; // Element index of the beginning of search range
+
+		/*
+			TODO: binary search
+		*/
+		// Linearly search through array
+		for(int i = min; i < max; i++)
+			if(sphere[i] == search)
+				return sphere[i];
+		// Return NULL if we didn't find the search
+		return NULL_VECTOR;
+	}
+
+	/*
+	FUNCTION:          getCube(int radius)
+	DESCRIPTION:       Gets a cube of elements centered at (0, 0, 0) of radius <radius>
+	RETURNS: 		   An array containing the cube
+	*/
+	inline vector<Vector3> getCube(int radius){
+		return getCube(Vector3(), radius);
+	}
+
+	/*
+	FUNCTION:          getCube(Vector3 origin, int radius)
+	DESCRIPTION:       Gets a cube of elements centered at <origin> of radius <radius>
+	RETURNS: 		   An array containing the cube
+	*/
+	vector<Vector3> getCube(Vector3 origin, int radius){
+		vector<Vector3> out; // Variable storing the output array
+		// Generate a box of radius <radius>
+		for(int x = -radius; x <= radius; x++)
+			for(int y = -radius; y <= radius; y++)
+				for(int z = -radius; z <= radius; z++){
+					// Get the point from the main array (compensating for origin)
+					Vector3 point = getPoint(Vector3(x, y, z) + origin);
+					// If the point exists add it to the output array
+					if(point != NULL_VECTOR)
+						out.push_back(point);
+				}
+		return out;
+	}
+
+	/*
+	FUNCTION:          getSphere(int radius)
+	DESCRIPTION:       Gets a sphere of elements centered at (0, 0, 0) of radius <radius>
+	RETURNS: 		   An array containing the sphere
+	*/
+	vector<Vector3> getSphere(int radius){
+		return getSphere(Vector3(), radius);
+	}
+
+	/*
+	FUNCTION:          getSphere(Vector3 origin, int radius)
+	DESCRIPTION:       Gets a sphere of elements centered at <origin> of radius <radius>
+	RETURNS: 		   An array containing the sphere
+	*/
+	vector<Vector3> getSphere(Vector3 origin, int radius){
+		vector<Vector3> out; // Variable storing the output array
+		// Generate a box of radius <radius>
+		for(int x = -radius; x <= radius; x++)
+			for(int y = -radius; y <= radius; y++)
+				for(int z = -radius; z <= radius; z++){
+					// Get the point from the main array (compensating for origin)
+					Vector3 point = getPoint(Vector3(x, y, z) + origin);
+					// If the point exists...
+					if(point != NULL_VECTOR)
+						// And is inside the sphere, add it to the array
+						if ((radius * radius) >= dist(point, origin))
+							out.push_back(point);
+				}
+		return out;
 	}
 
 	/*
@@ -149,17 +234,28 @@ NOTES:
 int main()
 {
 	Vector3 origin;
-	const int r = 4 * 5;
+	const int r = 4 * 1;
 	ChunkMap sphere(origin, r);
 
 	visualizeSphere(sphere);
 
-	time(cout << sphere.getPoint(Vector3(0, 0, 0)))
+	time(cout << sphere.getPoint(Vector3(1, 3, 6)))
 
 
+	/*vector<Vector3> alwaysLoad;
+	time(alwaysLoad = sphere.getSphere(1));
+	int i = 0;
+	for(Vector3 cur: alwaysLoad){
+		cout << cur << '\t';
+		if (++i > 2){
+			cout << endl;
+			i = 0;
+		}
+	}*/
 
-	/*int i = 0;
-	for(Vector3 cur: sphere){
+	/*
+	int i = 0;
+	for(Vector3 cur: sphere.sphere){
 		cout << cur << "\t";
 		if(i++ > 5){
 			cout << endl;
@@ -176,19 +272,32 @@ int main()
 	return 0;
 }
 
+/*
+FUNCTION:          visualizeSphere(ChunkMap sphere, ostream& out)
+DESCRIPTION:       Prints out a 2D representation of the sphere
+NOTES:			   The numbers represent the z-axis
+*/
 void visualizeSphere(ChunkMap sphere, ostream& out){
+	// Loop through x and y of index, checking if the values exist
 	for(int x = -sphere.radius; x <= sphere.radius; x++)
-		if (sphere.count.find(x) != sphere.count.end()) {
-			bool first = true;
+		if (sphere.index.find(x) != sphere.index.end()) {
+			bool first = true; // Variable storing if this is the first number of a line
 			for(int y = -sphere.radius; y <= sphere.radius; y++)
-				if (sphere.count[x].find(y) != sphere.count[x].end()){
+				if (sphere.index[x].find(y) != sphere.index[x].end()){
+					// If this is the first number of a row
 					if(first)
-						out << (sphere.count[x][y] - sphere.count[x-1][(sphere.count[x-1].size()-1)/2]) << " ";
+						// Calculate the delta elements based on the end of the previous row
+						out << (sphere.index[x][y] - sphere.index[x-1][(sphere.index[x-1].size()-1)/2]) << " ";
 					else
-						out << (sphere.count[x][y] - sphere.count[x][y-1]) << " ";
+						// Otherwise calculate the delta elements from the previous y-axis value
+						out << (sphere.index[x][y] - sphere.index[x][y-1]) << " ";
+					// Just display the total row count
+					//out << (sphere.index[x][y]) << " ";
 					first = false;
+				// If the value doesn't exist in the array, just print some horizontal space
 				} else
 					out << "  ";
+			// For every x-row print a newline
 			out << endl;
 		}
 }
@@ -197,8 +306,7 @@ void visualizeSphere(ChunkMap sphere, ostream& out){
 FUNCTION:          centerText(input, width)
 DESCRIPTION:       Takes an input string and centers it based on the input width
 RETURNS:           The string with added spacing
-NOTES:
- */
+*/
 string centerText(string input, int width) {
 	// Calculates the middle of the desired width
 	// and subtracts half of the length of the input string from it

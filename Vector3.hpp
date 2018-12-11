@@ -1,7 +1,7 @@
 /* -----------------------------------------------------------------------------
 
 FILE:			Vector3.hpp
-DESCRIPTION:	Highly functional Vector3 (and Vector2) with swizzels
+DESCRIPTION:	Highly functional Vector3 (and Vector2) with swizzles
 
 MODIFICATION HISTORY:
 Author             Date               Version
@@ -15,7 +15,7 @@ Joshua Dahl        2018-12-09         0.0 - Implemented Vector3 (and helper Vect
 /*
 CLASS: Vector2
 DESCRIPTION: holds two floating point values
-NOTES: only supports the four main math/assignment opperators
+NOTES: only supports the four main math/assignment operators
 */
 struct Vector2 {
 	// The floating point values being managed
@@ -26,7 +26,7 @@ struct Vector2 {
 	// Constructor defaulting internal values to zero if none are provided
 	Vector2() : x(0), y (0) {}
 
-	// Swizzels
+	// Swizzles
 	inline float& first() { return x; }
 	inline float& second() { return y; }
 
@@ -77,7 +77,7 @@ struct Vector2 {
 /*
 CLASS: Vector2Holder
 DESCRIPTION: holds references to two floating point values
-NOTES: only supports the four main math/assignment opperators
+NOTES: only supports the four main math/assignment operators
 		used as the return type of swizzles in the Vector3 class
 */
 struct Vector2Holder {
@@ -140,7 +140,7 @@ struct Vector2Holder {
 /*
 CLASS: Vector3
 DESCRIPTION: holds three floating point values
-NOTES: only supports the four main math/assignment opperators
+NOTES: only supports the four main math/assignment operators
 */
 struct Vector3 {
 	// Internal Values
@@ -154,7 +154,7 @@ struct Vector3 {
 	Vector3(Vector2 xy, float z1) : x(xy.x), y(xy.y), z(z1) {}
 	Vector3(float x1, Vector2 yz) : x(x1), y(yz.first()), z(yz.second()) {}
 
-	// Swizzels
+	// Swizzles
 	inline float& first() { return x; }
 	inline float& second() { return y; }
 	inline float& third() { return z; }
@@ -169,6 +169,13 @@ struct Vector3 {
 	Vector3 integize(){ return Vector3(int(x), int(y), int(z)); }
 
 	// Addition (Scalars and Vector3s)
+	Vector3 operator+(Vector3 in){
+		Vector3 tmp;
+		tmp.x = x + in.x;
+		tmp.y = y + in.y;
+		tmp.z = z + in.z;
+		return tmp;
+	}
 	void operator+=(float in){
 		x += in;
 		y += in;
@@ -215,6 +222,20 @@ struct Vector3 {
 		y /= in.y;
 		z /= in.z;
 	}
+
+	// Equality (and Inequality)
+	bool operator!=(const Vector3 in){
+		if(x == in.x) return false;
+		if(y == in.y) return false;
+		if(z == in.z) return false;
+		return true;
+	}
+	bool operator==(const Vector3 in){
+		if(int(x) != int(in.x)) return false;
+		if(int(y) != int(in.y)) return false;
+		if(int(z) != int(in.z)) return false;
+		return true;
+	}
 };
 
 /*
@@ -245,3 +266,6 @@ std::ostream& operator << (std::ostream& out, Vector2 vec){
 		<< vec.y << "}";
 	return out;
 }
+
+// Constant holding a constant representing a null value
+const Vector3 NULL_VECTOR(-999, -999, -999);
