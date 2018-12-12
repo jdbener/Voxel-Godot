@@ -50,15 +50,9 @@ struct ChunkMap{
 	DESCRIPTION:       Creates the sphere (centered at <origin> of radius <radius>)
 						and indexes the elements
 	*/
-	ChunkMap(Vector3 _origin, int _radius) : radius(_radius), origin(_origin) {
-		initSphere();
-		time(initIndex());
-		cout << endl;
-	}
-
 	ChunkMap(int _radius) : radius(_radius), origin(Vector3()) {
 		initSphere();
-		time(initIndex());
+		initIndex();
 		cout << endl;
 	}
 
@@ -118,9 +112,7 @@ struct ChunkMap{
 		sphere.swap(tempSphere);
 	}
 
-	inline int getIndex(int x, int y, int print = false){
-		if (print)
-			cout << endl << Vector2(x, y);
+	inline int getIndex(int x, int y){
 		if(index.find(x) != index.end())
 			if(index[x].find(y) != index[x].end())
 				return index[x][y];
@@ -241,6 +233,7 @@ private:
 		// Generate cube
 		for(int x = radius; x >= -radius; x--){
 			for(int y = radius; y >= -radius; y--){
+				int total = 0; // Variable storing the z value for the x,y pair
 				for(int z = radius; z >= -radius; z--){
 					/*
 						We are comparing radius squared to the distance with no sqrt because
@@ -249,13 +242,22 @@ private:
 					// Variable storing the current position of the point (compensating for the origin)
 					Vector3 temp = Vector3(x, y, z) + origin;
 					// Ignore points not inside sphere
-					if ((radius * radius) >= dist(temp, origin))
+					if ((radius * radius) >= dist(temp, origin)){
 						// Add the current point to the output array
 						sphere.push_back(temp);
-					// We are decrementing from the current position because
-					// we are working from the top-left to the bottom-right
+						// For every z we add to the array, increment our total
+						total++;
+					}
+
 				}
-			}
+				/*
+					This moving this calculation allows init index to not have to loop through the entire
+					array looking for elements. Instead it happens inside of loops which would have occured either way
+				*/
+				// If we added anything to the array for this pair, set the index to the count
+				if (total > 0)
+					index[x][y] = total;
+ 			}
 		}
 	}
 
@@ -264,24 +266,24 @@ private:
 	DESCRIPTION:       Indexes the array
 	*/
 	void initIndex(){
-		cout << "Indexing x="; // Print loading message
-		// Loop through x and y axises...
-		for(int x = -radius, total = 0; x <= radius; x++){
-			int x1 = x + origin.x;
-			for(int y = -radius; y <= radius; y++){
-				int y1 = y + origin.y;
-				// If the point is within the sphere...
-				if(dist(Vector3(x, y, 0), Vector3()) <= (radius * radius)){
-					// Store a count of the total elements so far
-					for(Vector3 cur: sphere)
-						if(cur.y == y1 && cur.x == x1)
-							total++;
-					index[x][y] = total;
-				}
+		// Loop through the index, ensuring that an index value for the given x,y pair has been initalized
+		for(int x = -radius; x <= radius; x++)
+			if(index.find(x) != index.end()){
+				bool first = true; // Variable storing if this is the first element of the x (row)
+				for(int y = -radius; y <= radius; y++)
+					if (index[x].find(y) != index[x].end()){
+						// If this is the first element of the row...
+						if(first){
+							// And this isn't the first row
+							if(x != -radius)
+								// Wrap back to the last value of the previous row
+								index[x][y] += index[x-1][(index[x-1].size()-1) / 2];
+							first = false;
+						// Otherwise just add the previous column
+						} else 
+							index[x][y] += index[x][y-1];
+					}
 			}
-			// Print loading message
-			cout << "..." << x; if(!(x % 10)) cout << flush;
-		}
 	}
 };
 
@@ -298,8 +300,8 @@ NOTES:
  */
 int main()
 {
-	const int r = 4 * 1;
-	ChunkMap sphere(Vector3(1, 1, 1), r);
+	const int r = 4 * 10;
+	ChunkMap sphere(r);
 	time(sphere.reinitSphere(Vector3(1, -1, 1)));
 
 	visualizeSphere(sphere);
