@@ -2,6 +2,7 @@
 
 FILE:			Vector3.hpp
 DESCRIPTION:	Highly functional Vector3 (and Vector2) with swizzles
+NOTES: 			This is a temp system which will be replaced by Godot!
 
 MODIFICATION HISTORY:
 Author             Date               Version
@@ -188,6 +189,13 @@ struct Vector3 {
 	}
 
 	// Subtraction (Scalars and Vector3s)
+	Vector3 operator-(Vector3 in){
+		Vector3 tmp;
+		tmp.x = x - in.x;
+		tmp.y = y - in.y;
+		tmp.z = z - in.z;
+		return tmp;
+	}
 	void operator-=(float in){
 		x -= in;
 		y -= in;
