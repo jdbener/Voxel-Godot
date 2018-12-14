@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=2]
+
+[ext_resource path="res://SimpleClass.gdns" type="Script" id=1]
+[ext_resource path="res://Test Cube.tscn" type="PackedScene" id=2]
+
+[node name="Main" type="Spatial"]
+
+[node name="Camera" type="Camera" parent="."]
+transform = Transform( 0.411766, 0.325663, -0.851112, 0, 0.933965, 0.357365, 0.91129, -0.147151, 0.384575, -5.50436, 2.15361, 3.85391 )
+fov = 90.0
+
+[node name="ChunkMap" type="Spatial" parent="."]
+script = ExtResource( 1 )
+
+[node name="Test Cube" parent="ChunkMap" instance=ExtResource( 2 )]
+
