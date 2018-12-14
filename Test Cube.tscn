@@ -9,9 +9,11 @@ shader = ExtResource( 1 )
 [sub_resource type="CubeMesh" id=2]
 
 material = SubResource( 1 )
+size = Vector3( 1, 1, 1 )
 
 [node name="Test Cube" type="Spatial"]
 
 [node name="CSGMesh" type="CSGMesh" parent="."]
+use_collision = true
 mesh = SubResource( 2 )
 

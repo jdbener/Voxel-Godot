@@ -4,7 +4,7 @@
 
 [resource]
 
-resource_name = "SimpleClass"
-class_name = "SimpleClass"
+resource_name = "ChunkMap"
+class_name = "ChunkMap"
 library = ExtResource( 1 )
 
