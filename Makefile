@@ -1,5 +1,5 @@
-CC32=g++ -m32 -g -O3 -std=c++14 -Igodot-cpp/include -Igodot-cpp/include/core -Igodot-cpp/include/gen -Igodot-cpp/godot_headers
-CC64=g++ -fPIC -g -O3 -std=c++14 -Igodot-cpp/include -Igodot-cpp/include/core -Igodot-cpp/include/gen -Igodot-cpp/godot_headers
+CC32=g++ -m32 -g -O3 -std=c++14 -Igodot-cpp/include -Igodot-cpp/include/core -Igodot-cpp/include/gen -Igodot-cpp/godot_headers -Ilib
+CC64=g++ -fPIC -g -O3 -std=c++14 -Igodot-cpp/include -Igodot-cpp/include/core -Igodot-cpp/include/gen -Igodot-cpp/godot_headers -Ilib
 
 OBJ32 = src/init.32 src/ChunkMap.32
 OBJ64 = src/init.64 src/ChunkMap.64

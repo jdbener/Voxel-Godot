@@ -7,6 +7,7 @@ Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-14		  1.0 - Godotized project
 */
+
 //#include "SimpleClass.h"
 #include "ChunkMap.hpp"
 

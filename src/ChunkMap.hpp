@@ -6,11 +6,15 @@ MODIFICATION HISTORY:
 Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-14		  1.0 - Godotized file (as part of that processes it became necessary to split off a header)
+Joshua Dahl		   2018-12-17		  1.1 - Bug fixes on getSphere, exposed getInternalArray for use in GDScript, and split off the index fetching
+                                            code in getPoint to getPointIndex
 */
 #include <Godot.hpp>
 #include <Spatial.hpp>
 #include <Vector3.hpp>
 #include <Array.hpp>
+
+//#include <Chunk.hpp>
 
 #include <map>
 #include <vector>
@@ -37,8 +41,11 @@ public:
 
 	void reinitSphere(Vector3 translation);
 
-	int getIndex(int x, int y);
-	Vector3 getPoint(Vector3 search);
+    inline Array getInternalArray();
+
+	inline int getIndex(int x, int y);
+    int getPointIndex(Vector3 search);
+	inline Chunk getPoint(Vector3 search);
 
 	Array getCube(int radius, Vector3 origin = Vector3(0, 0, 0));
 	Array getSphere(int radius, Vector3 origin = Vector3(0, 0, 0));

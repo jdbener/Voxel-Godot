@@ -15,6 +15,8 @@ Joshua Dahl		   2018-12-11		  0.2 - Rewritten initialization code to support ori
 										as opposed to being recreated.
 Joshua Dahl		   2018-12-13		  0.3 - Optimized Indexing and re-factored getPoint() to not use a search algorithm
 Joshua Dahl		   2018-12-14		  1.0 - Godotized FILE
+Joshua Dahl		   2018-12-17		  1.1 - Bug fixes on getSphere, exposed getInternalArray for use in GDScript, and split off the index fetching
+                                            code in getPoint to getPointIndex
 */
 #include "ChunkMap.hpp"
 
@@ -43,8 +45,11 @@ void ChunkMap::_register_methods(){
 	// Reinit
 	register_method("reinitSphere", &ChunkMap::reinitSphere);
 
+	register_method("getInternalArray", &ChunkMap::getInternalArray);
+
 	// Index/Point Getter Functions
 	register_method("getIndex", &ChunkMap::getIndex);
+	register_method("getPointIndex", &ChunkMap::getPointIndex);
 	register_method("getPoint", &ChunkMap::getPoint);
 
 	// Subcube/Subsphere
@@ -121,6 +126,18 @@ void ChunkMap::reinitSphere(Vector3 translation){
 }
 
 /*
+FUNCTION:          getInternalArray()
+DESCRIPTION:       Gets a copy of the internal sphere array
+RETURNS: 		   The sphere array
+*/
+inline Array ChunkMap::getInternalArray(){
+	Array out;
+	for(Vector3 cur: sphere)
+		out.push_back(cur);
+	return out;
+}
+
+/*
 FUNCTION:          getIndex(int x, int y)
 DESCRIPTION:       Gets the number of elements which appear in the array before the given x, y point
 RETURNS: 		   The element count
@@ -135,11 +152,11 @@ int ChunkMap::getIndex(int x, int y){
 }
 
 /*
-FUNCTION:          getPoint(const Vector3& search)
+FUNCTION:          getPointIndex(Vector3 search)
 DESCRIPTION:       Gets a element stored at the provided search point
-RETURNS: 		   The element
+RETURNS: 		   The element's index in the array
 */
-Vector3 ChunkMap::getPoint(Vector3 search){
+int ChunkMap::getPointIndex(Vector3 search){
 	/*
 		This algorithm narrows its results to a single z-axis column (from the index)
 		and then remaps the z-axis point to the [0, axis.size()] range
@@ -149,11 +166,26 @@ Vector3 ChunkMap::getPoint(Vector3 search){
 		range = (max - min - 1) / 2 + 1;
 
 	// Return NULL if the search is out of array bounds
-	if(min < 0) return NULL_VECTOR;
+	if(min < 0) return NULL_INDEX;
 	// Return NULL if the search is out of slice bounds
-	if(int(-(search.z - origin.z)) < -range || int(search.z - origin.z) > range) return NULL_VECTOR;
-	// Since we know the value is in the array, get it
-	return sphere[max - (int(search.z - origin.z) + range)];
+	if(int(-(search.z - origin.z)) < -range || int(search.z - origin.z) > range) return NULL_INDEX;
+	// Since we know the index is in the array, get it
+	return max - (int(search.z - origin.z) + range);
+}
+
+/*
+FUNCTION:          getPoint(const Vector3& search)
+DESCRIPTION:       Gets a element stored at the provided search point
+RETURNS: 		   The element
+*/
+inline Vector3 ChunkMap::getPoint(Vector3 search){
+	// Get the index from the array
+	int index = getPointIndex(search);
+	// If the index value is in the array return the point stored there
+	if(index != NULL_INDEX)
+		return sphere[index];
+	// Otherwise, return null
+	return NULL_VECTOR;
 }
 
 
@@ -185,9 +217,9 @@ RETURNS: 		   An array containing the sphere
 Array ChunkMap::getSphere(int radius, Vector3 origin){
 	Array out; // Variable storing the output array
 	// Generate a box of radius <radius>
-	for(int x = radius; x > -radius; x--)
-		for(int y = radius; y > -radius; y--)
-			for(int z = radius; z > -radius; z--){
+	for(int x = radius; x >= -radius; x--)
+		for(int y = radius; y >= -radius; y--)
+			for(int z = radius; z >= -radius; z--){
 				// Get the point from the main array (compensating for origin)
 				Vector3 point = getPoint(Vector3(x, y, z) + origin);
 				// If the point exists...
