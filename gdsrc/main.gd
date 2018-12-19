@@ -9,10 +9,10 @@ func _ready():
 	# Variable storing a reference to the ChunkMap
 	var ChunkMap = root.get_node("ChunkMap");
 	
-	for chunk in ChunkMap.getSphere(5):
+	for chunk in ChunkMap.getSphereRim(ChunkMap.radius):
 		var cube = CSGBox.new()
 		cube.width = 1; cube.height = 1; cube.depth = 1;
-		cube.material = load("res://shaders/TansparentTest.tres")
+		cube.material = load("res://materials/TansparentTest.tres")
 		cube.translate(chunk)
 		ChunkMap.add_child(cube)
 	

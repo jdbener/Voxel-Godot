@@ -7,6 +7,7 @@ Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-14		  0.0 - Implemented BlockRef, Block, and an initial version of
                                         the block system
+Joshua Dahl		   2018-12-14		  0.1 - Moved BlockRef and the BlockList to BlockList.hpp
 */
 
 /*
@@ -17,84 +18,47 @@ Joshua Dahl		   2018-12-14		  0.0 - Implemented BlockRef, Block, and an initial 
 #define BLOCK_H
 
 #include "Voxel.hpp"
+#include "BlockList.hpp"
+
 #include <cereal/access.hpp>
+#include <iostream>
 
 // Prototype Chunk
 class Chunk;
 
-struct BlockRef {
-    // Material IDS
-    unsigned short up, down, left, right, front, back;
-
-    BlockRef(unsigned short u, unsigned short d, unsigned short l, unsigned short r, unsigned short f, unsigned short b) : up(u), down(d), left(l), right(r), front(f), back(b) { }
-
-    bool operator==(BlockRef other){
-        if(up != other.up) return false;
-        if(down != other.down) return false;
-        if(left != other.left) return false;
-        if(right != other.right) return false;
-        if(front != other.front) return false;
-        if(back != other.back) return false;
-        return true;
-    }
-
-    bool operator!=(BlockRef other){
-        return !(*this == other);
-    }
-};
-
-/*
-    TODO: set up automated system: reading JSON file?
-*/
-namespace Blocks {
-    // 0 - empty/air block
-    static BlockRef null = BlockRef(0, 0, 0, 0, 0, 0);
-
-    static BlockRef* getReference(short ID){
-        switch(ID){
-        case 0: return &null; break;
-
-
-        }
-        return &null;
-    }
-
-    static short getID(BlockRef* ref){
-        if(ref == &null)
-            return 0;
-
-
-        else
-            return 0;
-    }
-};
-
 struct Block: public Voxel {
-    Chunk* chunk;
-    BlockRef* block;
+    Chunk* chunk; // A reference to the owning chunk
+    BlockRef* blockRef; // A reference to the block reference this block represents
 
-    Block(Chunk* _chunk, Vector3 _center, BlockRef* _block = &Blocks::null) : Voxel(_center), block(_block) { chunk = _chunk; }
-    Block(Chunk* _chunk, BlockRef* _block = &Blocks::null) : Voxel(), block(_block) { chunk = _chunk; }
+    Block(Chunk* _chunk, Vector3 _center, BlockRef* _block = BlockList::null) : Voxel(_center), blockRef(_block) { chunk = _chunk; }
+    Block(Chunk* _chunk, BlockRef* _block = BlockList::null) : Voxel(), blockRef(_block) { chunk = _chunk; }
 
     bool operator==(BlockRef other){
-        return *block == other;
+        return *blockRef == other;
+    }
+    bool operator==(BlockRef* other){
+        return blockRef == other;
     }
     bool operator!=(BlockRef other){
-        return *block != other;
+        return *blockRef != other;
+    }
+    bool operator!=(BlockRef* other){
+        return blockRef != other;
     }
 
     template <class Archive>
     void save(Archive & ar) const {
         Voxel::save(ar);
-        ar( cereal::make_nvp("BlockID", Blocks::getID(block)) );
+        ar( cereal::make_nvp("BlockID", BlockList::getID(blockRef)) );
+        //std::cout << "Block " << BlockList::getID(block) << " found at " << block << std::endl;
     }
     template <class Archive>
     void load(Archive & ar) {
         Voxel::load(ar);
         {
-            short ID;
+            bID ID;
             ar( cereal::make_nvp("BlockID", ID) );
-            block = Blocks::getReference(ID);
+            blockRef = BlockList::getReference(ID);
         }
     }
 };

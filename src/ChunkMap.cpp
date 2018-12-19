@@ -16,9 +16,13 @@ Joshua Dahl		   2018-12-11		  0.2 - Rewritten initialization code to support ori
 Joshua Dahl		   2018-12-13		  0.3 - Optimized Indexing and re-factored getPoint() to not use a search algorithm
 Joshua Dahl		   2018-12-14		  1.0 - Godotized FILE
 Joshua Dahl		   2018-12-17		  1.1 - Bug fixes on getSphere, exposed getInternalArray for use in GDScript, and split off the index fetching
-                                            code in getPoint to getPointIndex
+                                        code in getPoint to getPointIndex
+Joshua Dahl		   2018-12-19		  1.2 - Implemented getShereRim and getCubeRim, split the cube/sphere getters into two functions (one returning
+										A vector and the other returning a Godot Array)
 */
 #include "ChunkMap.hpp"
+#include "Godotize.hpp"
+#include <algorithm>
 
 /*
 FUNCTION:          _init()
@@ -34,7 +38,7 @@ FUNCTION:          _register_methods()
 DESCRIPTION:       Used to tell the engine what functions this script is providing
 */
 void ChunkMap::_register_methods(){
-	// Export <radius> and <origin>
+	// export <radius> and <origin>
     register_property<ChunkMap, int>("radius", &ChunkMap::radius, 4 * 2);
     register_property<ChunkMap, Vector3>("origin", &ChunkMap::origin, Vector3(0, 0, 0));
 
@@ -53,14 +57,14 @@ void ChunkMap::_register_methods(){
 	register_method("getPoint", &ChunkMap::getPoint);
 
 	// Subcube/Subsphere
-	//register_method("getCube", &ChunkMap::getCubeInt);
-	register_method("getCube", &ChunkMap::getCube);
-	//register_method("getSphere", &ChunkMap::getSphereInt);
-	register_method("getSphere", &ChunkMap::getSphere);
+	register_method("getCube", &ChunkMap::getCubeExport);
+	register_method("getCubeRim", &ChunkMap::getCubeRimExport);
+	register_method("getSphere", &ChunkMap::getSphereExport);
+	register_method("getSphereRim", &ChunkMap::getSphereRimExport);
 }
 
 /*
-FUNCTION:          CONSTRUCTOR()
+FUNCTION:          _enter_tree()
 DESCRIPTION:       Creates the sphere (centered at <origin> of radius <radius>)
 					and indexes the elements
 */
@@ -70,7 +74,7 @@ void ChunkMap::_enter_tree() {
 }
 
 /*
-FUNCTION:          DESTRUCTOR()
+FUNCTION:          _exit_tree()
 DESCRIPTION:       Cleans up the array and index
 */
 void ChunkMap::_exit_tree() {
@@ -188,14 +192,13 @@ inline Vector3 ChunkMap::getPoint(Vector3 search){
 	return NULL_VECTOR;
 }
 
-
 /*
 FUNCTION:          getCube(Vector3 origin, int radius)
 DESCRIPTION:       Gets a cube of elements centered at <origin> of radius <radius>
 RETURNS: 		   An array containing the cube
 */
-Array ChunkMap::getCube(int radius, Vector3 origin){
-	Array out; // Variable storing the output array
+std::vector<Vector3> ChunkMap::getCube(int radius, Vector3 origin){
+	std::vector<Vector3> out; // Variable storing the output array
 	// Generate a box of radius <radius>
 	for(int x = radius; x > -radius; x--)
 		for(int y = radius; y > -radius; y--)
@@ -208,14 +211,38 @@ Array ChunkMap::getCube(int radius, Vector3 origin){
 			}
 	return out;
 }
+Array inline ChunkMap::getCubeExport(int radius, Vector3 origin){ return godotize(getCube(radius, origin)); }
+
+/*
+FUNCTION:          getCubeRim(Vector3 origin, int radius)
+DESCRIPTION:       Gets a the outer rim of a cube of elements centered at <origin> of radius <radius>
+RETURNS: 		   An array containing the rim
+*/
+std::vector<Vector3> ChunkMap::getCubeRim(int radius, Vector3 origin){
+	std::vector<Vector3> out; // Variable storing the output array
+	// Generate a box of radius <radius>
+	for(int x = radius; x > -radius; x--)
+		for(int y = radius; y > -radius; y--)
+			for(int z = radius; z > -radius; z--)
+				// Remove everything not on the rim
+				if(x == radius || x == -radius + 1 || y == radius || y == -radius + 1 || z == radius || z == -radius + 1) {
+					// Get the point from the main array (compensating for origin)
+					Vector3 point = getPoint(Vector3(x, y, z) + origin);
+					// If the point exists add it to the output array
+					if(point != NULL_VECTOR)
+						out.push_back(point);
+				}
+	return out;
+}
+Array ChunkMap::getCubeRimExport(int radius, Vector3 origin){ return godotize(getCubeRim(radius, origin)); }
 
 /*
 FUNCTION:          getSphere(Vector3 origin, int radius)
 DESCRIPTION:       Gets a sphere of elements centered at <origin> of radius <radius>
 RETURNS: 		   An array containing the sphere
 */
-Array ChunkMap::getSphere(int radius, Vector3 origin){
-	Array out; // Variable storing the output array
+std::vector<Vector3> ChunkMap::getSphere(int radius, Vector3 origin){
+	std::vector<Vector3> out; // Variable storing the output array
 	// Generate a box of radius <radius>
 	for(int x = radius; x >= -radius; x--)
 		for(int y = radius; y >= -radius; y--)
@@ -226,10 +253,37 @@ Array ChunkMap::getSphere(int radius, Vector3 origin){
 				if(point != NULL_VECTOR)
 					// And is inside the sphere, add it to the array
 					if ((radius * radius) >= point.distance_squared_to(origin))
-						out.push_back(point);
+							out.push_back(point);
 			}
 	return out;
 }
+Array ChunkMap::getSphereExport(int radius, Vector3 origin){ return godotize(getSphere(radius, origin)); }
+
+/*
+FUNCTION:          getSphereRim(Vector3 origin, int radius)
+DESCRIPTION:       Gets the outer rim of a sphere of elements centered at <origin> of radius <radius>
+RETURNS: 		   An array containing the rim
+*/
+std::vector<Vector3> ChunkMap::getSphereRim(int radius, Vector3 origin){
+	std::vector<Vector3> out; // Variable storing the output array
+	// Generate a box of radius <radius>
+	for(int x = radius; x >= -radius; x--)
+		for(int y = radius; y >= -radius; y--)
+			for(int z = radius; z >= -radius; z--){
+				// Get the point from the main array (compensating for origin)
+				Vector3 point = getPoint(Vector3(x, y, z) + origin);
+				// If the point exists...
+				if(point != NULL_VECTOR)
+					// And is inside the sphere
+					if ((radius * radius) >= point.distance_squared_to(origin))
+						// But is not inside a sphere of radius <radius> - 1
+						if(((radius - 1) * (radius - 1)) < point.distance_squared_to(origin))
+							// Add it to the array
+							out.push_back(point);
+			}
+	return out;
+}
+Array ChunkMap::getSphereRimExport(int radius, Vector3 origin){ return godotize(getSphereRim(radius, origin)); }
 
 /*
 FUNCTION:          initSphere()

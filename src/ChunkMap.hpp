@@ -7,7 +7,9 @@ Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-14		  1.0 - Godotized file (as part of that processes it became necessary to split off a header)
 Joshua Dahl		   2018-12-17		  1.1 - Bug fixes on getSphere, exposed getInternalArray for use in GDScript, and split off the index fetching
-                                            code in getPoint to getPointIndex
+                                        code in getPoint to getPointIndex
+Joshua Dahl		   2018-12-19		  1.2 - Implemented getShereRim and getCubeRim, split the cube/sphere getters into two functions (one returning
+                                        A vector and the other returning a Godot Array)
 */
 #include <Godot.hpp>
 #include <Spatial.hpp>
@@ -45,11 +47,21 @@ public:
 
 	inline int getIndex(int x, int y);
     int getPointIndex(Vector3 search);
-	inline Chunk getPoint(Vector3 search);
+	inline Vector3 getPoint(Vector3 search);
 
-	Array getCube(int radius, Vector3 origin = Vector3(0, 0, 0));
-	Array getSphere(int radius, Vector3 origin = Vector3(0, 0, 0));
+    std::vector<Vector3> getCube(int radius, Vector3 origin = Vector3(0, 0, 0));
+    std::vector<Vector3> getCubeRim(int radius, Vector3 origin = Vector3(0, 0, 0));
+    std::vector<Vector3> getSphere(int radius, Vector3 origin = Vector3(0, 0, 0));
+    std::vector<Vector3> getSphereRim(int radius, Vector3 origin = Vector3(0, 0, 0));
 
+    Array getCubeExport(int radius, Vector3 origin = Vector3(0, 0, 0));
+    Array getCubeRimExport(int radius, Vector3 origin = Vector3(0, 0, 0));
+    Array getSphereExport(int radius, Vector3 origin = Vector3(0, 0, 0));
+    Array getSphereRimExport(int radius, Vector3 origin = Vector3(0, 0, 0));
+
+    ChunkMap(){
+
+    }
 private:
 	void initSphere();
 	void initIndex();

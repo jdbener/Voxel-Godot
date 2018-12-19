@@ -7,6 +7,7 @@ MODIFICATION HISTORY:
 Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl        2018-12-18         0.0 - Implemented Chunk, Subchunk8/4/2, and serialization
+Joshua Dahl        2018-12-18         0.1 - Reworked initialization to propagate position
 */
 
 #include <iostream>
@@ -131,7 +132,14 @@ int main(){
     for(Chunk cur: array)
         std::cout << cur << std::endl;
 
-    writeChunk("test.chunk", array[0]);
+    Chunk save;
+    for(SubChunk8& c8: save.subChunks)
+        for(SubChunk4& c4: c8.subChunks)
+            for(SubChunk2& c2: c4.subChunks)
+                for(Block& b: c2.blocks)
+                    b.blockRef = BlockList::getReference(rand() % 2);
+
+    writeChunk("test.chunk", save);
 
     Chunk load;
     loadChunk("test.chunk", load);
@@ -142,12 +150,15 @@ int main(){
         for(SubChunk4 c4: c8.subChunks)
             for(SubChunk2 c2: c4.subChunks)
                 for(Block b: c2.blocks){
-                    if(b == Blocks::null) nullTotal++;
+                    if(b == BlockList::null) nullTotal++;
                     total++;
                 }
+
     std::cout << "Total Blocks: " << total << std::endl
                 << "Total NULL: " << nullTotal << std::endl
-                << "Load Proof: " << load.getCenter(false) << std::endl;
+                << "Load Proof: " << load.getCenter(false) << std::endl
+                << "Block Ref Proof: " << BlockList::getID(load.subChunks[0].subChunks[0].subChunks[0].blocks[0].blockRef) << std::endl;
+
 
     system("pause");
 
