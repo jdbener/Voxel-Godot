@@ -9,22 +9,17 @@ Joshua Dahl		   2018-12-14		  0.0 - Implemented JSON based block definition syst
 Joshua Dahl		   2018-12-14		  0.1 - Reimplemented block definition system to work entirely in memory
                                         (I realized there was no benefit to the JSON system and it would
                                         just create another file I would have to ensure is in the right place)
-*/
-
-/*
-    TODO: merge into cpp file
+Joshua Dahl		   2018-12-19		  0.2 - Split code into BlockList.cpp
+Joshua Dahl        2018-12-19         1.0 - Godotized file
 */
 
 #ifndef BLOCKLIST_H
 #define BLOCKLIST_H
 
-#include "Defs.hpp"
+#include "./GlobalDefs.hpp"
 
 #include <cereal/types/map.hpp>
 #include <map>
-
-// Define bID to be a unsigned sshort int
-typedef unsigned short bID;
 
 struct BlockRef {
     // Material IDS
@@ -36,52 +31,50 @@ struct BlockRef {
         : up(u), down(d), left(l), right(r), front(f), back(b), solid(_solid) { }
     BlockRef() : up(0), down(0), left(0), right(0), front(0), back(0), solid(true) { }
 
-    bool operator==(BlockRef other){
-        if(up != other.up) return false;
-        if(down != other.down) return false;
-        if(left != other.left) return false;
-        if(right != other.right) return false;
-        if(front != other.front) return false;
-        if(back != other.back) return false;
-        return true;
-    }
-
-    bool operator!=(BlockRef other){
-        return !(*this == other);
-    }
-
-    template <class Archive>
-    void serialize( Archive & ar ) {
-        ar( CEREAL_NVP(up), CEREAL_NVP(down), CEREAL_NVP(left), CEREAL_NVP(right), CEREAL_NVP(front), CEREAL_NVP(back), CEREAL_NVP(solid) );
-    }
+    bool operator==(BlockRef other);
+    bool operator!=(BlockRef other);
 };
 
-/*
-    TODO: set up automated system: reading JSON file?
-*/
 struct _BlocksManager {
-    std::map<bID, BlockRef> blocks;
-    bID blockID = 0;
+    // Actual Block list
+    std::map<refID, BlockRef> blocks;
+    // ID used for adding blocks
+    refID blockID = 0;
 
+    /* ----------------------------------------------------------------------------
+        This is where the BlockList is defined
+    ---------------------------------------------------------------------------- */
     _BlocksManager(){
         blocks[blockID++] = BlockRef(0, 0, 0, 0, 0, 0, false); // null
         blocks[blockID++] = BlockRef(1, 2, 3, 4, 5, 6, true); // debug
     }
 
-    BlockRef* operator[](bID ID){
+    BlockRef* operator[](refID ID){
         return &blocks[ID];
     }
 };
+
 namespace BlockList {
+    // A reference to the block list manager
     static _BlocksManager blocks;
+    // Name block[0] null
     static BlockRef* null = &blocks.blocks[0];
 
-    static inline BlockRef* getReference(short ID){
+    /*
+    NAME:           getReference(refID ID)
+    DESCRIPTION:    Converts the provided refID into a pointer to the BlockRef
+    NOTES:          If the block ID can't be found returns a pointer to the null ref
+    */
+    static BlockRef* getReference(refID ID){
         if(blocks.blocks.find(ID) == blocks.blocks.end()) return null;
         return blocks[ID];
     }
 
-    static bID getID(BlockRef* ref){
+    /*
+    NAME:           getID(BlockRef* ref)
+    DESCRIPTION:    Converts a pointer to a blockRef into a refID
+    */
+    static refID getID(BlockRef* ref){
         // For every block in the blocklist
         for (auto const& cur : blocks.blocks)
             // If the memory location of the value stored in the map is the same
@@ -93,7 +86,11 @@ namespace BlockList {
         return 0;
     }
 
-    static inline bID addBlock(BlockRef ref){
+    /*
+    NAME:           addBlock(BlockRef ref)
+    DESCRIPTION:    Function to for an external source to add a block to the manager
+    */
+    static refID addBlock(BlockRef ref){
         blocks.blocks[blocks.blockID] = ref;
         return blocks.blockID++;
     }

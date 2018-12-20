@@ -15,6 +15,7 @@ transform = Transform( 0.411766, 0.325663, -0.851112, 0, 0.933965, 0.357365, 0.9
 fov = 90.0
 script = ExtResource( 3 )
 privot = NodePath("../ChunkMap")
+distance = 16
 
 [node name="DirectionalLight" type="DirectionalLight" parent="."]
 transform = Transform( -0.991264, 0.0753412, -0.108261, 0, 0.820802, 0.571213, 0.131897, 0.566223, -0.813631, 0, 0, 0 )

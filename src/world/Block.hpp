@@ -7,21 +7,21 @@ Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-14		  0.0 - Implemented BlockRef, Block, and an initial version of
                                         the block system
-Joshua Dahl		   2018-12-14		  0.1 - Moved BlockRef and the BlockList to BlockList.hpp
-*/
-
-/*
-    TODO: merge into cpp file
+Joshua Dahl		   2018-12-18		  0.1 - Moved BlockRef and the BlockList to BlockList.hpp
+Joshua Dahl		   2018-12-19		  0.2 - Split code off into Block.cpp
+Joshua Dahl        2018-12-19         1.0 - Godotized file
 */
 
 #ifndef BLOCK_H
 #define BLOCK_H
 
+#include "../BlockList.hpp"
 #include "Voxel.hpp"
-#include "BlockList.hpp"
 
 #include <cereal/access.hpp>
 #include <iostream>
+
+using namespace godot;
 
 // Prototype Chunk
 class Chunk;
@@ -33,30 +33,38 @@ struct Block: public Voxel {
     Block(Chunk* _chunk, Vector3 _center, BlockRef* _block = BlockList::null) : Voxel(_center), blockRef(_block) { chunk = _chunk; }
     Block(Chunk* _chunk, BlockRef* _block = BlockList::null) : Voxel(), blockRef(_block) { chunk = _chunk; }
 
-    bool operator==(BlockRef other){
-        return *blockRef == other;
-    }
-    bool operator==(BlockRef* other){
-        return blockRef == other;
-    }
-    bool operator!=(BlockRef other){
-        return *blockRef != other;
-    }
-    bool operator!=(BlockRef* other){
-        return blockRef != other;
-    }
+    bool operator==(BlockRef other);
+    bool operator==(BlockRef* other);
+    bool operator!=(BlockRef other);
+    bool operator!=(BlockRef* other);
 
+    /*
+    NAME:           save(Archive & ar)
+    DESCRIPTION:    Tells the serializer what information to save for this class
+    */
     template <class Archive>
     void save(Archive & ar) const {
+        // Serialize the parents first
         Voxel::save(ar);
+        // Serialize the blockRef into a refID and serialize it
         ar( cereal::make_nvp("BlockID", BlockList::getID(blockRef)) );
-        //std::cout << "Block " << BlockList::getID(block) << " found at " << block << std::endl;
     }
+
+    /*
+    NAME:           load(Archive & ar)
+    DESCRIPTION:    Tells the serializer what information to load into this class
+    */
     template <class Archive>
     void load(Archive & ar) {
+        // Unserialize the parents first
         Voxel::load(ar);
         {
-            bID ID;
+            /*
+                This system allows a chunk file generated on any computer to create
+                pointers on any other computer
+            */
+            // Load the refId and convert it back into a pointer
+            refID ID;
             ar( cereal::make_nvp("BlockID", ID) );
             blockRef = BlockList::getReference(ID);
         }

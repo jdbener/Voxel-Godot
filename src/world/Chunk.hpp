@@ -7,16 +7,17 @@ Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-14		  0.0 - Implemented Chunk, Subchunk8/4/2, and serialization
 Joshua Dahl        2018-12-18         0.1 - Reworked initialization to propagate position
+Joshua Dahl        2018-12-19         1.0 - Godotized file
 */
 
 #ifndef CHUNK_H
 #define CHUNK_H
 
-#include "Defs.hpp"
-#include "Vector3Temp.hpp"
 #include "Block.hpp"
-#include <ostream>
-#include <string>
+
+#include <Vector3.hpp>
+
+using namespace godot;
 
 const Vector3 i0 = Vector3(1, 1, 1),
         i1 = Vector3(-1, 1, 1),
@@ -38,7 +39,19 @@ public:
 
     virtual Vector3 getCenter(bool worldScale = true) { return Vector3(); }
 
-    template <class Archive> void serialize( Archive & ar );
+    /*
+    NAME:           serialize( Archive & ar )
+    DESCRIPTION:    Function used to tell the serialization library what variables to serialize
+    */
+    template <class Archive>
+    void serialize( Archive & ar ) {
+        // First serialize the inhertience hierachy
+        Voxel::serialize( ar );
+        // Then serialize this class's members
+        ar ( cereal::make_nvp("MatID-up", up), cereal::make_nvp("MatID-down", down),
+             cereal::make_nvp("MatID-left", left), cereal::make_nvp("MatID-right", right),
+             cereal::make_nvp("MatID-front", front), cereal::make_nvp("MatID-back", back) );
+    }
 };
 
 class SubChunk2: public ChunkBase {
@@ -53,7 +66,21 @@ public:
 
     Vector3 getCenter(bool worldScale = true);
 
-    template <class Archive> void serialize( Archive & ar );
+    /*
+    NAME:           serialize( Archive & ar )
+    DESCRIPTION:    Function used to tell the serialization library what variables to serialize
+    */
+    template <class Archive>
+    void serialize( Archive & ar ) {
+        // First serialize the inhertience hierachy
+        ChunkBase::serialize( ar );
+        /*
+            This may be removed in the future if I decide to commit to binary chunks instead of switchablity
+        */
+        // The array of sub-chunks is serialized in steps so that human identifiable names can be generated
+        for(int i = 0; i < SUB_PER_WHOLE; i++)
+            ar (cereal::make_nvp("SubChunk8-" + std::to_string(i), blocks[i]));
+    }
 };
 
 class SubChunk4: public ChunkBase {
@@ -69,7 +96,21 @@ public:
 
     Vector3 getCenter(bool worldScale = true);
 
-    template <class Archive> void serialize( Archive & ar );
+    /*
+    NAME:           serialize( Archive & ar )
+    DESCRIPTION:    Function used to tell the serialization library what variables to serialize
+    */
+    template <class Archive>
+    void serialize( Archive & ar ) {
+        // First serialize the inhertience hierachy
+        ChunkBase::serialize( ar );
+        /*
+            This may be removed in the future if I decide to commit to binary chunks instead of switchablity
+        */
+        // The array of sub-chunks is serialized in steps so that human identifiable names can be generated
+        for(int i = 0; i < SUB_PER_WHOLE; i++)
+            ar (cereal::make_nvp("SubChunk8-" + std::to_string(i), subChunks[i]));
+    }
 };
 
 class SubChunk8: public ChunkBase {
@@ -85,7 +126,21 @@ public:
 
     Vector3 getCenter(bool worldScale = true);
 
-    template <class Archive> void serialize( Archive & ar );
+    /*
+    NAME:           serialize( Archive & ar )
+    DESCRIPTION:    Function used to tell the serialization library what variables to serialize
+    */
+    template <class Archive>
+    void serialize( Archive & ar ) {
+        // First serialize the inhertience hierachy
+        ChunkBase::serialize( ar );
+        /*
+            This may be removed in the future if I decide to commit to binary chunks instead of switchablity
+        */
+        // The array of sub-chunks is serialized in steps so that human identifiable names can be generated
+        for(int i = 0; i < SUB_PER_WHOLE; i++)
+            ar (cereal::make_nvp("SubChunk8-" + std::to_string(i), subChunks[i]));
+    }
 };
 
 class Chunk: public ChunkBase {
@@ -105,7 +160,23 @@ public:
     void setSoldity(short solidBlocks);
     Vector3 getCenter(bool worldScale = true);
 
-    template <class Archive> void serialize( Archive & ar );
+    /*
+    NAME:           serialize( Archive & ar )
+    DESCRIPTION:    Function used to tell the serialization library what variables to serialize
+    */
+    template <class Archive>
+    void serialize( Archive & ar ) {
+        // First serialize the inhertience hierachy
+        ChunkBase::serialize( ar );
+        // Then serialize this class's members
+        ar (cereal::make_nvp("Solid", solid));
+        /*
+            This may be removed in the future if I decide to commit to binary chunks instead of switchablity
+        */
+        // The array of sub-chunks is serialized in steps so that human identifiable names can be generated
+        for(int i = 0; i < SUB_PER_WHOLE; i++)
+            ar (cereal::make_nvp("SubChunk8-" + std::to_string(i), subChunks[i]));
+    }
 };
 
 // Tell cereal which of the inherited serialization functions to use
@@ -115,14 +186,8 @@ CEREAL_SPECIALIZE_FOR_ALL_ARCHIVES( SubChunk8, cereal::specialization::member_se
 CEREAL_SPECIALIZE_FOR_ALL_ARCHIVES( SubChunk4, cereal::specialization::member_serialize )
 CEREAL_SPECIALIZE_FOR_ALL_ARCHIVES( SubChunk2, cereal::specialization::member_serialize )
 
+// Serialization Procedures
 void writeChunk(char const* fileName, Chunk & chunk);
 void loadChunk(char const* fileName, Chunk & chunk);
-
-std::ostream& operator<< (std::ostream& stream, Vector3 vec);
-std::ostream& operator<< (std::ostream& stream, ChunkBase chunk);
-std::ostream& operator<< (std::ostream& stream, SubChunk2 chunk);
-std::ostream& operator<< (std::ostream& stream, SubChunk4 chunk);
-std::ostream& operator<< (std::ostream& stream, SubChunk8 chunk);
-std::ostream& operator<< (std::ostream& stream, Chunk chunk);
 
 #endif

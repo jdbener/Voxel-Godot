@@ -5,14 +5,16 @@ DESCRIPTION:        The base type which blocks, chunks, and sub-chunks inherit f
 MODIFICATION HISTORY:
 Author             Date               Version
 ---------------    ----------         --------------
-Joshua Dahl		   2018-12-14		  1.0 - Implemented Voxel type (glorified vector3)
+Joshua Dahl		   2018-12-14		  0.0 - Implemented Voxel type (glorified vector3)
+Joshua Dahl		   2018-12-14		  1.0 - Godotized file
 */
 
 #ifndef VOXEL_H
 #define VOXEL_H
 
-#include "Vector3Temp.hpp"
-#include <cereal/archives/json.hpp>
+#include <Vector3.hpp>
+
+using namespace godot;
 
 /*
     TODO: Make Voxel's inherit from Godot's Vector3?

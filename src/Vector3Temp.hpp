@@ -12,6 +12,8 @@ Joshua Dahl		   2018-12-14		  1.0 - Implementation
 #ifndef VECTOR3_H
 #define VECTOR3_H
 
+namespace debug {
+
 struct Vector3 {
 
 	enum Axis {
@@ -42,6 +44,7 @@ struct Vector3 {
 	}
 };
 
+} // debug
 
 
 #endif

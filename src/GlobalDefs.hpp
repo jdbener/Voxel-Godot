@@ -1,15 +1,19 @@
 /*
-FILE:               Defs.hpp
+FILE:               GlobalDefs.hpp
 DESCRIPTION:        A list of global constants which the whole program can use
 
 MODIFICATION HISTORY:
 Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-14		  1.0 - Implemented constants used by the chunk system
+Joshua Dahl		   2018-12-14		  1.1 - Renamed file to fix conflict with Godot
 */
 
-#ifndef DEFS_H
-#define DEFS_H
+#ifndef GLOBAL_DEFS_H
+#define GLOBAL_DEFS_H
+
+// Define refID to be a unsigned short int
+typedef unsigned short refID;
 
 // Whether we export JSON or binary
 #define BINARY_OUTPUT false
