@@ -15,8 +15,8 @@ Joshua Dahl		   2018-12-14		  1.1 - Renamed file to fix conflict with Godot
 // Define refID to be a unsigned short int
 typedef unsigned short refID;
 
-// Whether we export JSON or binary
-#define BINARY_OUTPUT false
+// Whether or not we export JSON debug chunks
+#define JSON_DEBUG true
 
 // The fraction of blocks in a sub/chunk which must be solid for the sub/chunk to be considered solid
 const float SOLIDITY_FRACTION = 1.0 / 2;

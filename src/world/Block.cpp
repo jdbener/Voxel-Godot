@@ -7,6 +7,7 @@ Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-19		  0.2 - Split code off into Block.cpp
 Joshua Dahl        2018-12-19         1.0 - Godotized file
+Joshua Dahl        2018-12-21         1.1 - Refactored to support the new changes to BlockRefs
 */
 #include "Block.hpp"
 

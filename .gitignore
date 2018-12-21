@@ -3,3 +3,5 @@
  *.so
  *.32
  *.64
+ *.chunk
+ *.chunk.debug

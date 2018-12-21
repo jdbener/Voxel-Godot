@@ -30,7 +30,7 @@ const Vector3 NULL_VECTOR(-999, -999, -999);
 class ChunkMap: public Spatial {
   GODOT_CLASS(ChunkMap, Spatial);
 public:
-  void _init();
+    void _init();
 	static void _register_methods();
 
 	int radius;	// Variable storing the radius of the sphere

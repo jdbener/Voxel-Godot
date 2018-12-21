@@ -8,6 +8,9 @@ Author             Date               Version
 Joshua Dahl		   2018-12-14		  0.0 - Implemented Chunk, Subchunk8/4/2, and serialization
 Joshua Dahl        2018-12-18         0.1 - Reworked initialization to propagate position
 Joshua Dahl        2018-12-19         1.0 - Godotized file
+Joshua Dahl        2018-12-21         1.1 - Implemented functions/macros to run code for every block,
+                                        and changed serializer to only read load binary (JSON still
+                                        available for debugging)
 */
 
 #ifndef CHUNK_H
@@ -64,7 +67,7 @@ public:
                                 Block(_chunk, center + i3), Block(_chunk, center + i4), Block(_chunk, center + i5), Block(_chunk, center + i6), Block(_chunk, center + i7)})
                                 { }
 
-    Vector3 getCenter(bool worldScale = true);
+    Vector3 getCenter(bool worldScale = false);
 
     /*
     NAME:           serialize( Archive & ar )
@@ -79,7 +82,7 @@ public:
         */
         // The array of sub-chunks is serialized in steps so that human identifiable names can be generated
         for(int i = 0; i < SUB_PER_WHOLE; i++)
-            ar (cereal::make_nvp("SubChunk8-" + std::to_string(i), blocks[i]));
+            ar (cereal::make_nvp("Block-" + std::to_string(i), blocks[i]));
     }
 };
 
@@ -94,7 +97,7 @@ public:
                         SubChunk2(_chunk, center + Vector3(2, 2, 2) * i4), SubChunk2(_chunk, center + Vector3(2, 2, 2) * i5), SubChunk2(_chunk, center + Vector3(2, 2, 2) * i6),
                         SubChunk2(_chunk, center + Vector3(2, 2, 2) * i7)}) { }
 
-    Vector3 getCenter(bool worldScale = true);
+    Vector3 getCenter(bool worldScale = false);
 
     /*
     NAME:           serialize( Archive & ar )
@@ -109,7 +112,7 @@ public:
         */
         // The array of sub-chunks is serialized in steps so that human identifiable names can be generated
         for(int i = 0; i < SUB_PER_WHOLE; i++)
-            ar (cereal::make_nvp("SubChunk8-" + std::to_string(i), subChunks[i]));
+            ar (cereal::make_nvp("SubChunk2-" + std::to_string(i), subChunks[i]));
     }
 };
 
@@ -124,7 +127,7 @@ public:
                         SubChunk4(_chunk, center + Vector3(4, 4, 4) * i4), SubChunk4(_chunk, center + Vector3(4, 4, 4) * i5), SubChunk4(_chunk, center + Vector3(4, 4, 4) * i6),
                         SubChunk4(_chunk, center + Vector3(4, 4, 4) * i7)}) { }
 
-    Vector3 getCenter(bool worldScale = true);
+    Vector3 getCenter(bool worldScale = false);
 
     /*
     NAME:           serialize( Archive & ar )
@@ -139,7 +142,7 @@ public:
         */
         // The array of sub-chunks is serialized in steps so that human identifiable names can be generated
         for(int i = 0; i < SUB_PER_WHOLE; i++)
-            ar (cereal::make_nvp("SubChunk8-" + std::to_string(i), subChunks[i]));
+            ar (cereal::make_nvp("SubChunk4-" + std::to_string(i), subChunks[i]));
     }
 };
 
@@ -158,7 +161,12 @@ public:
                 SubChunk8(this, Vector3(8, 8, 8) * i5), SubChunk8(this, Vector3(8, 8, 8) * i6), SubChunk8(this, Vector3(8, 8, 8) * i7)}) { }
 
     void setSoldity(short solidBlocks);
-    Vector3 getCenter(bool worldScale = true);
+    Vector3 getCenter(bool worldScale = false);
+
+    Block* getBlock(Vector3 search);
+    int runOnBlocks(void (*func)(Block& curBlock, int& result, int index));
+    int runOnBlocks(void (*func)(Block& curBlock, int& result));
+    void runOnBlocks(void (*func)(Block& curBlock));
 
     /*
     NAME:           serialize( Archive & ar )
@@ -187,7 +195,12 @@ CEREAL_SPECIALIZE_FOR_ALL_ARCHIVES( SubChunk4, cereal::specialization::member_se
 CEREAL_SPECIALIZE_FOR_ALL_ARCHIVES( SubChunk2, cereal::specialization::member_serialize )
 
 // Serialization Procedures
-void writeChunk(char const* fileName, Chunk & chunk);
+void saveChunk(char const* fileName, Chunk & chunk);
 void loadChunk(char const* fileName, Chunk & chunk);
+
+#define RUN_ON_BLOCKS(chunk /* Must be a Chunk with either a . or a -> */) for(SubChunk8& c8: chunk subChunks)     \
+    for(SubChunk4& c4: c8.subChunks)                    \
+        for(SubChunk2& c2: c4.subChunks)                \
+            for(Block& block: c2.blocks)
 
 #endif

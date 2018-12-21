@@ -10,6 +10,7 @@ Joshua Dahl		   2018-12-14		  0.0 - Implemented BlockRef, Block, and an initial 
 Joshua Dahl		   2018-12-18		  0.1 - Moved BlockRef and the BlockList to BlockList.hpp
 Joshua Dahl		   2018-12-19		  0.2 - Split code off into Block.cpp
 Joshua Dahl        2018-12-19         1.0 - Godotized file
+Joshua Dahl        2018-12-21         1.1 - Refactored to support the new changes to BlockRefs
 */
 
 #ifndef BLOCK_H
@@ -39,6 +40,30 @@ struct Block: public Voxel {
     bool operator!=(BlockRef* other);
 
     /*
+    NAME:           getCenter()
+    DESCRIPTION:    Returns a Vector3 containing this block's center
+    */
+    Vector3 getCenter(){
+        return Vector3(x, y, z);
+    }
+
+    /*
+    NAME:           setBlockRef(BlockRef* ref)
+    DESCRIPTION:    Sets the block reference to the provided block reference
+    */
+    void setBlockRef(BlockRef* ref){
+        blockRef = ref;
+    }
+
+    /*
+    NAME:           setBlockRef(refID ID)
+    DESCRIPTION:    Sets the block reference the one in the blocklist stored at index <ID>
+    */
+    void setBlockRef(refID ID){
+        blockRef = BlockList::getReference(ID);
+    }
+
+    /*
     NAME:           save(Archive & ar)
     DESCRIPTION:    Tells the serializer what information to save for this class
     */
@@ -47,7 +72,7 @@ struct Block: public Voxel {
         // Serialize the parents first
         Voxel::save(ar);
         // Serialize the blockRef into a refID and serialize it
-        ar( cereal::make_nvp("BlockID", BlockList::getID(blockRef)) );
+        ar( cereal::make_nvp("BlockID", blockRef->ID) );
     }
 
     /*
