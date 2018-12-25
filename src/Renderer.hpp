@@ -5,7 +5,7 @@ DESCRIPTION:       Class which provides a means for interfacing Chunks with Godo
 MODIFICATION HISTORY:
 Author             Date               Version
 ---------------    ----------         --------------
-Joshua Dahl		   2018-12-21		  0.0 - Initial testing version
+Joshua Dahl		   2018-12-24		  0.0 - Initial testing version
 */
 
 #include <Godot.hpp>
@@ -19,11 +19,11 @@ using namespace godot;
 class ChunkRenderer: public Spatial {
     GODOT_CLASS(ChunkRenderer, Spatial);
 public:
-    Chunk chunk;
-
     void _init() {}
 	static void _register_methods();
 
+    static Chunk* generateChunk(Vector3 center, bool forceRegenerate = false, bool worldSpace = true);
+    static void bakeChunk(Chunk* chunk, int LoD = 0);
+
     void _enter_tree();
-    void _ready();
 };

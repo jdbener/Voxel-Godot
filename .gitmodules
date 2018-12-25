@@ -4,3 +4,6 @@
 [submodule "godot-headers"]
 	path = godot-cpp/godot_headers
 	url = https://github.com/GodotNativeTools/godot_headers
+[submodule "lib/SimplexNoise"]
+	path = lib/SimplexNoise
+	url = https://github.com/SRombauts/SimplexNoise.git

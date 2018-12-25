@@ -14,6 +14,8 @@ Joshua Dahl		   2018-12-14		  1.1 - Renamed file to fix conflict with Godot
 
 // Define refID to be a unsigned short int
 typedef unsigned short refID;
+// Define matID to be a unsigned short int
+typedef unsigned short matID;
 
 // Whether or not we export JSON debug chunks
 #define JSON_DEBUG true

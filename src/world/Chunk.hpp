@@ -11,17 +11,22 @@ Joshua Dahl        2018-12-19         1.0 - Godotized file
 Joshua Dahl        2018-12-21         1.1 - Implemented functions/macros to run code for every block,
                                         and changed serializer to only read load binary (JSON still
                                         available for debugging)
+Joshua Dahl        2018-12-24         1.2 - Implemented propagation of block state through the rest of the chunk
 */
 
 #ifndef CHUNK_H
 #define CHUNK_H
 
 #include "Block.hpp"
+#include "../Vector3Extra.hpp"
 
+#include <Spatial.hpp>
 #include <Vector3.hpp>
 
 using namespace godot;
 
+// Constants storing the direction each index in the subchunk/block array will be
+// offset from it's parent's center
 const Vector3 i0 = Vector3(1, 1, 1),
         i1 = Vector3(-1, 1, 1),
         i2 = Vector3(-1, 1, -1),
@@ -92,10 +97,10 @@ public:
     SubChunk2 subChunks[SUB_PER_WHOLE]; // Array storing the sub-chunks which this sub-chunk approximates
     Chunk* chunk; // Pointer to the owner chunk
 
-    SubChunk4(Chunk* _chunk, Vector3 center) : ChunkBase(center), chunk(_chunk), subChunks({SubChunk2(_chunk, center + Vector3(2, 2, 2) * i0),
-                        SubChunk2(_chunk, center + Vector3(2, 2, 2) * i1), SubChunk2(_chunk, center + Vector3(2, 2, 2) * i2), SubChunk2(_chunk, center + Vector3(2, 2, 2) * i3),
-                        SubChunk2(_chunk, center + Vector3(2, 2, 2) * i4), SubChunk2(_chunk, center + Vector3(2, 2, 2) * i5), SubChunk2(_chunk, center + Vector3(2, 2, 2) * i6),
-                        SubChunk2(_chunk, center + Vector3(2, 2, 2) * i7)}) { }
+    SubChunk4(Chunk* _chunk, Vector3 center) : ChunkBase(center), chunk(_chunk), subChunks({SubChunk2(_chunk, center + expand(2) * i0),
+                        SubChunk2(_chunk, center + expand(2) * i1), SubChunk2(_chunk, center + expand(2) * i2), SubChunk2(_chunk, center + expand(2) * i3),
+                        SubChunk2(_chunk, center + expand(2) * i4), SubChunk2(_chunk, center + expand(2) * i5), SubChunk2(_chunk, center + expand(2) * i6),
+                        SubChunk2(_chunk, center + expand(2) * i7)}) { }
 
     Vector3 getCenter(bool worldScale = false);
 
@@ -122,10 +127,10 @@ public:
     SubChunk4 subChunks[SUB_PER_WHOLE]; // Array storing the sub-chunks which this sub-chunk approximates
     Chunk* chunk; // Pointer to the owner chunk
 
-    SubChunk8(Chunk* _chunk, Vector3 center) : ChunkBase(center), chunk(_chunk), subChunks({SubChunk4(_chunk, center + Vector3(4, 4, 4) * i0),
-                        SubChunk4(_chunk, center + Vector3(4, 4, 4) * i1), SubChunk4(_chunk, center + Vector3(4, 4, 4) * i2), SubChunk4(_chunk, center + Vector3(4, 4, 4) * i3),
-                        SubChunk4(_chunk, center + Vector3(4, 4, 4) * i4), SubChunk4(_chunk, center + Vector3(4, 4, 4) * i5), SubChunk4(_chunk, center + Vector3(4, 4, 4) * i6),
-                        SubChunk4(_chunk, center + Vector3(4, 4, 4) * i7)}) { }
+    SubChunk8(Chunk* _chunk, Vector3 center) : ChunkBase(center), chunk(_chunk), subChunks({SubChunk4(_chunk, center + expand(4) * i0),
+                        SubChunk4(_chunk, center + expand(4) * i1), SubChunk4(_chunk, center + expand(4) * i2), SubChunk4(_chunk, center + expand(4) * i3),
+                        SubChunk4(_chunk, center + expand(4) * i4), SubChunk4(_chunk, center + expand(4) * i5), SubChunk4(_chunk, center + expand(4) * i6),
+                        SubChunk4(_chunk, center + expand(4) * i7)}) { }
 
     Vector3 getCenter(bool worldScale = false);
 
@@ -151,22 +156,32 @@ public:
     static const short SCALE = 16; // Scale (in World Scale) of this chunk
     SubChunk8 subChunks[SUB_PER_WHOLE]; // Array storing the tree of sub0chunks this chunk owns
 
-    bool solid = false; // Variable storing whether or not this chunk is solid
+    bool opaque = false; // Variable storing whether or not this chunk is solid
 
-    Chunk(Vector3 center) : ChunkBase(center), subChunks({SubChunk8(this, center + Vector3(8, 8, 8) * i0), SubChunk8(this, center + Vector3(8, 8, 8) * i1),
-                            SubChunk8(this, center + Vector3(8, 8, 8) * i2), SubChunk8(this, center + Vector3(8, 8, 8) * i3), SubChunk8(this, center + Vector3(8, 8, 8) * i4),
-                            SubChunk8(this, center + Vector3(8, 8, 8) * i5), SubChunk8(this, center + Vector3(8, 8, 8) * i6), SubChunk8(this, center + Vector3(8, 8, 8) * i7)}) { }
-    Chunk() : subChunks({SubChunk8(this, Vector3(8, 8, 8) * i0), SubChunk8(this, Vector3(8, 8, 8) * i1),
-                SubChunk8(this, Vector3(8, 8, 8) * i2), SubChunk8(this, Vector3(8, 8, 8) * i3), SubChunk8(this, Vector3(8, 8, 8) * i4),
-                SubChunk8(this, Vector3(8, 8, 8) * i5), SubChunk8(this, Vector3(8, 8, 8) * i6), SubChunk8(this, Vector3(8, 8, 8) * i7)}) { }
+    Spatial* node = nullptr;
+    short curLoD = -1;
+    bool locked = false;
 
-    void setSoldity(short solidBlocks);
+    Chunk(Vector3 center) : ChunkBase(center), subChunks({SubChunk8(this, center + expand(8) * i0), SubChunk8(this, center + expand(8) * i1),
+                            SubChunk8(this, center + expand(8) * i2), SubChunk8(this, center + expand(8) * i3), SubChunk8(this, center + expand(8) * i4),
+                            SubChunk8(this, center + expand(8) * i5), SubChunk8(this, center + expand(8) * i6), SubChunk8(this, center + expand(8) * i7)}) { }
+    Chunk() : subChunks({SubChunk8(this, expand(8) * i0), SubChunk8(this, expand(8) * i1),
+                SubChunk8(this, expand(8) * i2), SubChunk8(this, expand(8) * i3), SubChunk8(this, expand(8) * i4),
+                SubChunk8(this, expand(8) * i5), SubChunk8(this, expand(8) * i6), SubChunk8(this, expand(8) * i7)}) { }
+
+    // When the chunk is destroyed free the node tree it created
+    ~Chunk(){ node->queue_free(); }
+
+
+    void setOpacity(short solidBlocks);
     Vector3 getCenter(bool worldScale = false);
 
     Block* getBlock(Vector3 search);
     int runOnBlocks(void (*func)(Block& curBlock, int& result, int index));
     int runOnBlocks(void (*func)(Block& curBlock, int& result));
     void runOnBlocks(void (*func)(Block& curBlock));
+
+    void updateSubChunks();
 
     /*
     NAME:           serialize( Archive & ar )
@@ -177,7 +192,7 @@ public:
         // First serialize the inhertience hierachy
         ChunkBase::serialize( ar );
         // Then serialize this class's members
-        ar (cereal::make_nvp("Solid", solid));
+        ar (cereal::make_nvp("Opaque", opaque));
         /*
             This may be removed in the future if I decide to commit to binary chunks instead of switchablity
         */
