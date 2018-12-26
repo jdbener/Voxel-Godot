@@ -13,10 +13,14 @@ Joshua Dahl        2018-12-21         1.1 - Implemented functions/macros to run 
                                         and changed serializer to only read load binary (JSON still
                                         available for debugging)
 Joshua Dahl        2018-12-24         1.2 - Implemented propagation of block state through the rest of the chunk
+Joshua Dahl        2018-12-25         1.3 - Added code to get the levels of subChunks
 */
 
 #include "Chunk.hpp"
 #include "../Vector3Extra.hpp"
+#include "../Godotize.hpp"
+
+#include <String.hpp>
 
 #include <fstream>
 #include <string>
@@ -59,42 +63,83 @@ DESCRIPTION:    Gets the index of a block, this is a helper function for getBloc
 int getBlockIndex(Vector3 search, Vector3 center, short scale){
     // Variable storing the search location normalized to (-15, -15, -15) <= searchCenter <= (15, 15, 15)
     Vector3 searchCenter = search - center;
-    int index = -1; // Variable storing the output index (-1 if not found)
     // If the index is really in the normalized range
     if(searchCenter > expand(-scale) && searchCenter < expand(scale)){
         // Pick the index based on x, y, z values
         if(searchCenter.x > 0){ // 0, 3, 4, 7
             if(searchCenter.y > 0) { // 0, 3
                 if(searchCenter.z > 0){ // 0
-                    index = 0;
+                    return 0;
                 } else { // 3, int&
-                    index = 3;
+                    return 3;
                 }
             } else { // 4, 7
                 if(searchCenter.z > 0){ // 4
-                    index = 4;
+                    return 4;
                 } else { // 7
-                    index = 7;
+                    return 7;
                 }
             }
         } else { // 1, 2, 5, 6
             if(searchCenter.y > 0) { // 1, 2
                 if(searchCenter.z > 0){ // 1
-                    index = 1;
+                    return 1;
                 } else { // 2
-                    index = 2;
+                    return 2;
                 }
             } else { // 5, 6
                 if(searchCenter.z > 0){ // 5
-                    index = 5;
+                    return 5;
                 } else { // 6
-                    index = 6;
+                    return 6;
                 }
             }
         }
     }
     // Return the calculated index
-    return index;
+    return -1;
+}
+
+/*
+NAME:           getSubChunk8(Vector3 search)
+DESCRIPTION:    Gets a SubChunk8 out of the chunk
+*/
+SubChunk8* Chunk::getSubChunk8(Vector3 search){
+    // Get the index for every element in the array
+    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE);
+    if(c8 < 0 || c8 > 7) return nullptr;
+    // Ensure the indexes are all correct
+    return &subChunks[c8];
+}
+
+/*
+NAME:           getSubChunk4(Vector3 search)
+DESCRIPTION:    Gets a SubChunk4 out of the chunk
+*/
+SubChunk4* Chunk::getSubChunk4(Vector3 search){
+    // Get the index for every element in the array
+    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE);
+    if(c8 < 0 || c8 > 7) return nullptr;
+    int c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE);
+    if(c4 < 0 || c4 > 7) return nullptr;
+    // Ensure the indexes are all correct
+    return &subChunks[c8].subChunks[c4];
+}
+
+/*
+NAME:           getSubChunk2(Vector3 search)
+DESCRIPTION:    Gets a SubChunk2 out of the chunk
+*/
+SubChunk2* Chunk::getSubChunk2(Vector3 search){
+    // Get the index for every element in the array
+    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE);
+    if(c8 < 0 || c8 > 7) return nullptr;
+    int c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE);
+    if(c4 < 0 || c4 > 7) return nullptr;
+    int c2 = getBlockIndex(search, subChunks[c8].subChunks[c4].getCenter(), SubChunk4::SCALE);
+    if(c2 < 0 || c2 > 7) return nullptr;
+    // Ensure the indexes are all correct
+    return &subChunks[c8].subChunks[c4].subChunks[c2];
 }
 
 /*
@@ -103,16 +148,16 @@ DESCRIPTION:    Gets a block out of the chunk
 */
 Block* Chunk::getBlock(Vector3 search){
     // Get the index for every element in the array
-    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE),
-        c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE),
-        c2 = getBlockIndex(search, subChunks[c8].subChunks[c4].getCenter(), SubChunk4::SCALE),
-        block = getBlockIndex(search, subChunks[c8].subChunks[c4].subChunks[c2].getCenter(), SubChunk2::SCALE);
+    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE);
+    if(c8 < 0 || c8 > 7) return nullptr;
+    int c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE);
+    if(c4 < 0 || c4 > 7) return nullptr;
+    int c2 = getBlockIndex(search, subChunks[c8].subChunks[c4].getCenter(), SubChunk4::SCALE);
+    if(c2 < 0 || c2 > 7) return nullptr;
+    int block = getBlockIndex(search, subChunks[c8].subChunks[c4].subChunks[c2].getCenter(), SubChunk2::SCALE);
+    if(block < 0 || block > 7) return nullptr;
     // Ensure the indexes are all correct
-    if(c8 != -1 && c4 != -1 && c2 != -1 && block != -1)
-        // Gets the memmory address of the requested block
-        return &subChunks[c8].subChunks[c4].subChunks[c2].blocks[block];
-    // If one of the indexes was wrong return nullptr
-    return nullptr;
+    return &subChunks[c8].subChunks[c4].subChunks[c2].blocks[block];
 }
 
 /*
@@ -174,6 +219,19 @@ matID mode(matID array[]){
     return 0;
 }
 
+bool mode(bool array[]){
+    // Variable storing the number of times the element which appeared most appeared (read that statement three times fast!)
+    short true_count = 0;
+    // For every element in the array
+    for (int i = 0; i < 8; i++)
+        if(array[i])
+            true_count++;
+
+    if(true_count >= 4)
+        return true;
+    return false;
+}
+
 /*
 NAME:           updateSubChunks()
 DESCRIPTION:    Updates matIDs and opacity of the chunk/subchunk
@@ -191,19 +249,25 @@ void Chunk::updateSubChunks(){
         i = 0;
     // Variables storing all of the matIDs of the subChunks
     matID cup[8], cdown[8], cleft[8], cright[8], cfront[8], cback[8];
+    bool copaque[8];
     // Loop through all of the subChunks and fill in these variables
     for(SubChunk8& c8: subChunks){ // c8
         int c8I = 0;
         matID c8up[8], c8down[8], c8left[8], c8right[8], c8front[8], c8back[8];
+        bool c8opaque[8];
         for(SubChunk4& c4: c8.subChunks){ // c4
             int c4I = 0;
             matID c4up[8], c4down[8], c4left[8], c4right[8], c4front[8], c4back[8];
+            bool c4opaque[8];
             for(SubChunk2& c2: c4.subChunks){ // c2
                 int c2I = 0;
-                matID c2up[8], c2down[8], c2left[8], c2right[8], c2front[8], c2back[8];
+                matID c2up[8], c2down[8], c2left[8], c2right[8], c2front[8], c2back[8];\
+                bool c2opaque[8];
                 for(Block& block: c2.blocks){ // block
                     if(block.blockRef->opaque)
-                        opaque++;
+                        c2opaque[c2I] = true;
+                    else
+                        c2opaque[c2I] = false;
 
                     c2up[c2I] = block.blockRef->up; c2down[c2I] = block.blockRef->down;
                     c2left[c2I] = block.blockRef->left; c2right[c2I] = block.blockRef->right;
@@ -214,30 +278,36 @@ void Chunk::updateSubChunks(){
                 c2.up = mode(c2up); c2.down = mode(c2down);
                 c2.left = mode(c2left); c2.right = mode(c2right);
                 c2.front = mode(c2front); c2.back = mode(c2back);
+                c2.opaque = mode(c2opaque);
 
                 c4up[c4I] = c2.up; c4down[c4I] = c2.down;
                 c4left[c4I] = c2.left; c4right[c4I] = c2.right;
                 c4front[c4I] = c2.front; c4back[c4I] = c2.back;
+                c4opaque[c4I] = c2.opaque;
 
                 c4I++;
             } // c2
             c4.up = mode(c4up); c4.down = mode(c4down);
             c4.left = mode(c4left); c4.right = mode(c4right);
             c4.front = mode(c4front); c4.back = mode(c4back);
+            c4.opaque = mode(c4opaque);
 
             c8up[c8I] = c4.up; c8down[c8I] = c4.down;
             c8left[c8I] = c4.left; c8right[c8I] = c4.right;
             c8front[c8I] = c4.front; c8back[c8I] = c4.back;
+            c8opaque[c8I] = c4.opaque;
 
             c8I++;
         } // c4
         c8.up = mode(c8up); c8.down = mode(c8down);
         c8.left = mode(c8left); c8.right = mode(c8right);
         c8.front = mode(c8front); c8.back = mode(c8back);
+        c8.opaque = mode(c8opaque);
 
         cup[i] = c8.up; cdown[i] = c8.down;
         cleft[i] = c8.left; cright[i] = c8.right;
         cfront[i] = c8.front; cback[i] = c8.back;
+        copaque[i] = c8.opaque;
 
         i++;
     } // c8
@@ -245,9 +315,7 @@ void Chunk::updateSubChunks(){
     up = mode(cup); down = mode(cdown);
     left = mode(cleft); right = mode(cright);
     front = mode(cfront); back = mode(cback);
-
-    // Calculate the opacity from the total number of opaque blocks
-    setOpacity(opaque);
+    opaque = mode(copaque);
 }
 
 /*

@@ -21,6 +21,8 @@ script = ExtResource( 1 )
 script = ExtResource( 2 )
 privot = NodePath("../ChunkRenderer")
 distance = 20
+collisions = false
+max_speed = Vector3( 20, 20, 20 )
 
 [node name="ChunkRenderer" type="Spatial" parent="."]
 script = ExtResource( 3 )

@@ -56,7 +56,7 @@ ui_down={
 
 [memory]
 
-limits/message_queue/max_size_kb=4096
+limits/message_queue/max_size_kb=8192
 
 [rendering]
 

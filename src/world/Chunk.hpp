@@ -12,6 +12,7 @@ Joshua Dahl        2018-12-21         1.1 - Implemented functions/macros to run 
                                         and changed serializer to only read load binary (JSON still
                                         available for debugging)
 Joshua Dahl        2018-12-24         1.2 - Implemented propagation of block state through the rest of the chunk
+Joshua Dahl        2018-12-25         1.3 - Added code to get the levels of subChunks
 */
 
 #ifndef CHUNK_H
@@ -42,6 +43,8 @@ public:
     // Material IDS
     unsigned short up, down, left, right, front, back;
 
+    bool opaque = false; // Variable storing whether or not this chunk is solid
+
     ChunkBase(Vector3 center) : Voxel(center) { }
     ChunkBase() { }
 
@@ -56,9 +59,11 @@ public:
         // First serialize the inhertience hierachy
         Voxel::serialize( ar );
         // Then serialize this class's members
+
         ar ( cereal::make_nvp("MatID-up", up), cereal::make_nvp("MatID-down", down),
              cereal::make_nvp("MatID-left", left), cereal::make_nvp("MatID-right", right),
-             cereal::make_nvp("MatID-front", front), cereal::make_nvp("MatID-back", back) );
+             cereal::make_nvp("MatID-front", front), cereal::make_nvp("MatID-back", back),
+             cereal::make_nvp("Opaque", opaque) );
     }
 };
 
@@ -156,8 +161,6 @@ public:
     static const short SCALE = 16; // Scale (in World Scale) of this chunk
     SubChunk8 subChunks[SUB_PER_WHOLE]; // Array storing the tree of sub0chunks this chunk owns
 
-    bool opaque = false; // Variable storing whether or not this chunk is solid
-
     CSGCombiner* node = nullptr;
     short curLoD = -1;
     bool locked = false;
@@ -177,6 +180,10 @@ public:
     Vector3 getCenter(bool worldScale = false);
 
     Block* getBlock(Vector3 search);
+    SubChunk2* getSubChunk2(Vector3 search);
+    SubChunk4* getSubChunk4(Vector3 search);
+    SubChunk8* getSubChunk8(Vector3 search);
+
     int runOnBlocks(void (*func)(Block& curBlock, int& result, int index));
     int runOnBlocks(void (*func)(Block& curBlock, int& result));
     void runOnBlocks(void (*func)(Block& curBlock));
@@ -191,8 +198,6 @@ public:
     void serialize( Archive & ar ) {
         // First serialize the inhertience hierachy
         ChunkBase::serialize( ar );
-        // Then serialize this class's members
-        ar (cereal::make_nvp("Opaque", opaque));
         /*
             This may be removed in the future if I decide to commit to binary chunks instead of switchablity
         */
