@@ -20,7 +20,7 @@ Joshua Dahl        2018-12-24         1.2 - Implemented propagation of block sta
 #include "Block.hpp"
 #include "../Vector3Extra.hpp"
 
-#include <Spatial.hpp>
+#include <CSGCombiner.hpp>
 #include <Vector3.hpp>
 
 using namespace godot;
@@ -158,7 +158,7 @@ public:
 
     bool opaque = false; // Variable storing whether or not this chunk is solid
 
-    Spatial* node = nullptr;
+    CSGCombiner* node = nullptr;
     short curLoD = -1;
     bool locked = false;
 

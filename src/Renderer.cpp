@@ -6,6 +6,7 @@ MODIFICATION HISTORY:
 Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-24		  0.0 - Initial testing version
+Joshua Dahl		   2018-12-25		  0.1 - Added support for opaque blocks
 */
 
 #include "Renderer.hpp"
@@ -19,6 +20,9 @@ Joshua Dahl		   2018-12-24		  0.0 - Initial testing version
 #include <CSGCombiner.hpp>
 #include <PlaneMesh.hpp>
 #include <MeshInstance.hpp>
+#include <StaticBody.hpp>
+#include <CollisionShape.hpp>
+#include <BoxShape.hpp>
 
 #include <cstdlib>
 
@@ -71,6 +75,9 @@ void setSolidityTest (Block& b){
 	Vector3 center = b.getCenter();
     if(b.y < noiseGen.fractal(5, center.x / scale + seed, center.z / scale + seed) * max - (max - min) + 10)
         b.setBlockRef(2);
+
+	//if(center.y >= 14 && center.z < 15)
+	//	b.setBlockRef(1);
 }
 
 /*
@@ -87,16 +94,17 @@ Chunk* ChunkRenderer::generateChunk(Vector3 center, bool forceRegenerate, bool w
 	// Create a pointer to the new chunk and heap allocate it
     Chunk* out = new Chunk(center);
 	// If the chunk file exists, load it
-    if(ifstream(filePath).good() && !forceRegenerate)
+    if(ifstream(filePath).good() && !forceRegenerate){
         loadChunk(filePath.c_str(), *out);
+		// Debug
+	    Godot::print("Loaded chunk from: " + godotize(filePath));
 	// Otherwise, generate a new chunk and save it to the file
-    else {
+	} else {
         out->runOnBlocks(setSolidityTest);
         saveChunk(filePath.c_str(), *out);
+		// Debug
+	    Godot::print("Saved chunk to: " + godotize(filePath));
     }
-
-	// Debug
-    Godot::print("Loaded chunk from: " + godotize(filePath));
 
 	/*
 		TODO: when I merge in the chunk map, part of its reinit processes has to include freeing chunks
@@ -106,14 +114,128 @@ Chunk* ChunkRenderer::generateChunk(Vector3 center, bool forceRegenerate, bool w
 }
 
 /*
-	TODO: implement (switch to?) a MeshInstance based version for translucent blocks
-*/
-
-/*
 NAME:          makeVoxelNode(Vector3 center, BlockRef* ref, int scale = 1)
 DESCRIPTION:   Converts the provided blockRef into a cube of the provided scale
 */
-CSGCombiner* makeVoxelNode(Vector3 center, BlockRef* ref, int scale = 1){
+Spatial* makeVoxelNodeTranslucent(Vector3 center, BlockRef* ref, int scale = 1) {
+	// Create a spatial to hold the cube
+    Spatial* box = Spatial::_new();
+
+	// If the top face's material is 0 don't render it
+    if(ref->up > 0){
+		// Otherwise... Create a new mesh
+        MeshInstance* up = MeshInstance::_new();
+		// Apply a copy of the plane storing the requested material from the MaterialList
+        up->call_deferred("set_mesh", MaterialList::getPlane(ref->up));
+		// Position the plane
+        up->set_translation(upTrans * scale);
+        up->set_rotation_degrees(upRot);
+		up->set_scale(expand(scale));
+		// Parent the plane to the cube merger
+        box->call_deferred("add_child", up);
+    }
+
+	// If the top face's material is 0 don't render it
+    if(ref->down > 0){
+		// Otherwise... Create a new mesh
+        MeshInstance* down = MeshInstance::_new();
+		// Apply a copy of the plane storing the requested material from the MaterialList
+        down->call_deferred("set_mesh", MaterialList::getPlane(ref->down));
+		// Position the plane
+        down->set_translation(downTrans * scale);
+        down->set_rotation_degrees(downRot);
+		down->set_scale(expand(scale));
+		// Parent the plane to the cube merger
+        box->call_deferred("add_child", down);
+    }
+
+	// If the top face's material is 0 don't render it
+    if(ref->left > 0){
+		// Otherwise... Create a new mesh
+        MeshInstance* left = MeshInstance::_new();
+		// Apply a copy of the plane storing the requested material from the MaterialList
+        left->call_deferred("set_mesh", MaterialList::getPlane(ref->left));
+		// Position the plane
+        left->set_translation(leftTrans * scale);
+        left->set_rotation_degrees(leftRot);
+		left->set_scale(expand(scale));
+		// Parent the plane to the cube merger
+        box->call_deferred("add_child", left);
+    }
+
+	// If the top face's material is 0 don't render it
+    if(ref->right > 0){
+		// Otherwise... Create a new mesh
+        MeshInstance* right = MeshInstance::_new();
+		// Apply a copy of the plane storing the requested material from the MaterialList
+        right->call_deferred("set_mesh", MaterialList::getPlane(ref->right));
+		// Position the plane
+        right->set_translation(rightTrans * scale);
+        right->set_rotation_degrees(rightRot);
+		right->set_scale(expand(scale));
+		// Parent the plane to the cube merger
+        box->call_deferred("add_child", right);
+    }
+
+	// If the top face's material is 0 don't render it
+    if(ref->front > 0){
+		// Otherwise... Create a new mesh
+        MeshInstance* front = MeshInstance::_new();
+		// Apply a copy of the plane storing the requested material from the MaterialList
+        front->call_deferred("set_mesh", MaterialList::getPlane(ref->front));
+		// Position the plane
+        front->set_translation(frontTrans * scale);
+        front->set_rotation_degrees(frontRot);
+		front->set_scale(expand(scale));
+		// Parent the plane to the cube merger
+        box->call_deferred("add_child", front);
+    }
+
+	// If the top face's material is 0 don't render it
+    if(ref->back > 0){
+		// Otherwise... Create a new mesh
+        MeshInstance* back = MeshInstance::_new();
+		// Apply a copy of the plane storing the requested material from the MaterialList
+        back->call_deferred("set_mesh", MaterialList::getPlane(ref->back));
+		// Position the plane
+        back->set_translation(backTrans * scale);
+        back->set_rotation_degrees(backRot);
+		back->set_scale(expand(scale));
+		// Parent the plane to the cube merger
+        box->call_deferred("add_child", back);
+    }
+
+	// If the block is solid, generate a collision model for it
+	if(ref->solid){
+		// Create a collision node
+		StaticBody* collisionNode = StaticBody::_new();
+		// Create a collision shape node
+		CollisionShape* collisionShape = CollisionShape::_new();
+		// Create a box shape
+		Ref<Shape> shape = BoxShape::_new();
+
+		// Apply the box shape to the collision shape
+		collisionShape->set_shape(shape);
+		// Apply the collision shape to the collision node
+		collisionNode->add_child(collisionShape);
+
+		// Set the scale of the of the collision node
+		collisionNode->set_scale(expand(scale));
+		// Parent the collision node to the block
+		box->call_deferred("add_child", collisionNode);
+	}
+
+	// Position the cube where it should be
+    box->set_translation(center);
+	// Return a pointer to the cube
+    return box;
+}
+
+/*
+NAME:          makeVoxelNode(Vector3 center, BlockRef* ref, int scale = 1)
+DESCRIPTION:   Converts the provided blockRef into a constructive solid cube of the provided scale
+*/
+CSGCombiner* makeVoxelNodeOpaque(Vector3 center, BlockRef* ref, int scale = 1){
 	// Create a combiner to merge the cube together
     CSGCombiner* box = CSGCombiner::_new();
 
@@ -203,17 +325,39 @@ CSGCombiner* makeVoxelNode(Vector3 center, BlockRef* ref, int scale = 1){
 
 	// Position the cube where it should be
     box->set_translation(center);
+	// Set whether or not the block is solid
+	box->set_use_collision(ref->solid);
 	// Return a pointer to the cube
     return box;
+}
+
+/*
+NAME:          makeVoxelNode(Vector3 center, BlockRef* ref, int scale = 1)
+DESCRIPTION:   Converts the provided blockRef into a cube of the provided scale
+NOTES:			Switches between opaque and translucent code depending on blockRef
+*/
+inline Spatial* makeVoxelNode(Vector3 center, BlockRef* ref, int scale = 1){
+	if(ref->opaque)
+		return makeVoxelNodeOpaque(center, ref, scale);
+	return makeVoxelNodeTranslucent(center, ref, scale);
 }
 
 /*
 NAME:          makeVoxelNode(Vector3 center, matID up, matID down, matID left, matID right, matID front, matID back, int scale = 1)
 DESCRIPTION:   Converts the provided list of materials into a cube of the provided scale
 */
-inline CSGCombiner* makeVoxelNode(Vector3 center, matID up, matID down, matID left, matID right, matID front, matID back, int scale = 1){
+Spatial* makeVoxelNode(Vector3 center, matID up, matID down, matID left, matID right, matID front, matID back, int scale = 1){
 	// Create a temporary blockRef to pass to the first function
 	BlockRef temp = BlockRef(0, up, down, left, right, front, back);
+	// If this subChunk isn't solid, don't generate collisions
+	if(up == 0 && down == 0 && left == 0 && right == 0 && front == 0 && back == 0)
+		temp.solid = false;
+	// If this subChunk isn't opaque, don't generate csg blocks
+	if(!BlockList::getReference(up)->opaque || !BlockList::getReference(down)->opaque ||
+			!BlockList::getReference(left)->opaque || !BlockList::getReference(right)->opaque ||
+			!BlockList::getReference(front)->opaque || !BlockList::getReference(back)->opaque)
+		temp.opaque = false;
+
 	// Return the value from the other version of maxeVoxelNode
     return makeVoxelNode(center, &temp, scale);
 }
@@ -228,7 +372,7 @@ void ChunkRenderer::bakeChunk(Chunk* chunk, int LoD){
 		// Only rebake the chunk if it's level of detail has changed
 		// initial bakes will always be preformed since curLoD is set to -1 by default
 		if(chunk->curLoD != LoD){
-			Godot::print("Baking at LoD:" + String::num(LoD));
+			Godot::print("Baking " + godotize(to_string(chunk->getCenter() / 32, true)) + " at LoD: " + String::num(LoD));
 			// Lock the chunk
 			chunk->locked = true;
 
@@ -239,7 +383,7 @@ void ChunkRenderer::bakeChunk(Chunk* chunk, int LoD){
 			chunk->curLoD = LoD;
 
 			// Create a new spatial for the chunk base to originate from
-			chunk->node = Spatial::_new();
+			chunk->node = CSGCombiner::_new();
 			//chunk->node->set_translation(chunk->getCenter());
 
 			if(LoD < 4) { // lod != 4
@@ -247,18 +391,18 @@ void ChunkRenderer::bakeChunk(Chunk* chunk, int LoD){
 					    for(SubChunk4& c4: c8.subChunks) if(LoD < 2){ // lod != 2
 						        for(SubChunk2& c2: c4.subChunks) if(LoD < 1){ // lod != 1
 										for(Block& b: c2.blocks) // lod == 0
-											chunk->node->add_child( makeVoxelNode(b.getCenter() / 2, b.blockRef) );
+											chunk->node->call_deferred("add_child", makeVoxelNode(b.getCenter() / 2, b.blockRef) );
 									} else { // lod == 1
-										chunk->node->add_child( makeVoxelNode(c2.getCenter() / 2, c2.up, c2.down, c2.left, c2.right, c2.front, c2.back, SubChunk2::SCALE) );
+										chunk->node->call_deferred("add_child", makeVoxelNode(c2.getCenter() / 2, c2.up, c2.down, c2.left, c2.right, c2.front, c2.back, SubChunk2::SCALE) );
 									}
 							} else { // lod == 2
-								chunk->node->add_child( makeVoxelNode(c4.getCenter() / 2, c4.up, c4.down, c4.left, c4.right, c4.front, c4.back, SubChunk4::SCALE) );
+								chunk->node->call_deferred("add_child", makeVoxelNode(c4.getCenter() / 2, c4.up, c4.down, c4.left, c4.right, c4.front, c4.back, SubChunk4::SCALE) );
 							}
 					} else { // lod == 3
-						chunk->node->add_child( makeVoxelNode(c8.getCenter() / 2, c8.up, c8.down, c8.left, c8.right, c8.front, c8.back, SubChunk8::SCALE) );
+						chunk->node->call_deferred("add_child", makeVoxelNode(c8.getCenter() / 2, c8.up, c8.down, c8.left, c8.right, c8.front, c8.back, SubChunk8::SCALE) );
 					}
 			} else { // lod == 4
-				chunk->node->add_child( makeVoxelNode(chunk->getCenter() / 2, chunk->up, chunk->down, chunk->left, chunk->right, chunk->front, chunk->back, Chunk::SCALE) );
+				chunk->node->call_deferred("add_child", makeVoxelNode(chunk->getCenter() / 2, chunk->up, chunk->down, chunk->left, chunk->right, chunk->front, chunk->back, Chunk::SCALE) );
 			}
 
 			// Unlock the chunk
@@ -289,7 +433,6 @@ void ChunkRenderer::_enter_tree(){
 	thread(bakeChunk, chunk4, 3).detach();
 	thread(bakeChunk, chunk5, 4).detach();
 	thread(bakeChunk, chunk6, 4).detach();
-	thread(bakeChunk, chunk6, 0).detach();
 
 	bc0.join();
 	add_child(chunk->node);
