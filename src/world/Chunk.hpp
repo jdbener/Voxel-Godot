@@ -163,7 +163,7 @@ public:
 
     CSGCombiner* node = nullptr;
     short curLoD = -1;
-    bool locked = false;
+    bool locked = false, added = false;
 
     Chunk(Vector3 center) : ChunkBase(center), subChunks({SubChunk8(this, center + expand(8) * i0), SubChunk8(this, center + expand(8) * i1),
                             SubChunk8(this, center + expand(8) * i2), SubChunk8(this, center + expand(8) * i3), SubChunk8(this, center + expand(8) * i4),

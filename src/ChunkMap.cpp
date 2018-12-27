@@ -19,68 +19,32 @@ Joshua Dahl		   2018-12-17		  1.1 - Bug fixes on getSphere, exposed getInternalA
                                         code in getPoint to getPointIndex
 Joshua Dahl		   2018-12-19		  1.2 - Implemented getShereRim and getCubeRim, split the cube/sphere getters into two functions (one returning
 										A vector and the other returning a Godot Array)
+Joshua Dahl		   2018-12-26		  1.3 - Degodotized file for integration with ChunkRenderer
 */
+#include "ChunkGenerator.hpp"
+
 #include "ChunkMap.hpp"
 #include "Godotize.hpp"
 #include <algorithm>
 
 /*
-FUNCTION:          _init()
-DESCRIPTION:       Used to sync properties from the engine to the code
-*/
-void ChunkMap::_init() {
-	radius = 4 * 2;
-	origin = Vector3(0, 0, 0);
-}
-
-/*
-FUNCTION:          _register_methods()
-DESCRIPTION:       Used to tell the engine what functions this script is providing
-*/
-void ChunkMap::_register_methods(){
-	// export <radius> and <origin>
-    register_property<ChunkMap, int>("radius", &ChunkMap::radius, 4 * 2);
-    register_property<ChunkMap, Vector3>("origin", &ChunkMap::origin, Vector3(0, 0, 0));
-
-	// Con/destructor
-    register_method("_enter_tree", &ChunkMap::_enter_tree);
-    register_method("_exit_tree", &ChunkMap::_exit_tree);
-
-	// Reinit
-	register_method("reinitSphere", &ChunkMap::reinitSphere);
-
-	register_method("getInternalArray", &ChunkMap::getInternalArray);
-
-	// Index/Point Getter Functions
-	register_method("getIndex", &ChunkMap::getIndex);
-	register_method("getPointIndex", &ChunkMap::getPointIndex);
-	register_method("getPoint", &ChunkMap::getPoint);
-
-	// Subcube/Subsphere
-	register_method("getCube", &ChunkMap::getCubeExport);
-	register_method("getCubeRim", &ChunkMap::getCubeRimExport);
-	register_method("getSphere", &ChunkMap::getSphereExport);
-	register_method("getSphereRim", &ChunkMap::getSphereRimExport);
-}
-
-/*
-FUNCTION:          _enter_tree()
+FUNCTION:          CONSTRUCTOR()
 DESCRIPTION:       Creates the sphere (centered at <origin> of radius <radius>)
 					and indexes the elements
 */
-void ChunkMap::_enter_tree() {
+ChunkMap::ChunkMap(int _radius, Vector3 _origin) : radius(_radius), origin(_origin) {
 	initSphere();
 	initIndex();
 }
 
 /*
-FUNCTION:          _exit_tree()
+FUNCTION:          DESTRUCTOR()
 DESCRIPTION:       Cleans up the array and index
 */
-void ChunkMap::_exit_tree() {
+ChunkMap::~ChunkMap() {
 	sphere.clear();
-	for(int i = -radius; i <= radius; i++)
-		index[i].clear();
+	//for(int i = -radius; i <= radius; i++)
+	//	index[i].clear();
 	index.clear();
 }
 
@@ -91,7 +55,7 @@ DESCRIPTION:       Regenerates the array, changing the <origin> to reflect the
 */
 void ChunkMap::reinitSphere(Vector3 translation){
 	// Create (and reserve) a new temporary array to hold the new sphere
-	std::vector<Vector3> tempSphere;
+	std::vector<Chunk*> tempSphere;
 	/*
 		Considered pre-reserving the required space but... Any benefit is well
 		within the bounds of experimentation error
@@ -106,22 +70,19 @@ void ChunkMap::reinitSphere(Vector3 translation){
 				*/
 				// Variable storing the current position of the point (compensating for the origin)
 				Vector3 search = Vector3(x, y, z) + origin + translation;
+				Chunk* chunk = getChunk(search);
 				// Ignore points not inside sphere
 				if ((radius * radius) >= search.distance_squared_to(origin + translation)){
 					// See if the point is already in the sphere...
-					Vector3 temp = getPoint(search);
-					if(temp != NULL_VECTOR)
+					if(chunk != nullptr)
 						// If it is in the sphere add the point from the sphere
-						tempSphere.push_back(temp);
+						tempSphere.push_back(chunk);
 					else
-						// Otherwise load the sphere
-						tempSphere.push_back(search);
-					/*
-						This block isn't very important yet, but it will be as soon as we are holding chunks
-						instead of just vector3's. At that point we will have to read in/generate a chunk in this part
-						which will make the memory re-use very important
-					*/
-				}
+						// Otherwise load the the chunk
+						tempSphere.push_back( generateChunk(search) );
+				// If the point isn't in the sphere (and exists), free it's memory
+				} else if (chunk != nullptr)
+					delete chunk;
 			}
 	// Change the origin to reflect the new translation
 	origin += translation;
@@ -130,23 +91,11 @@ void ChunkMap::reinitSphere(Vector3 translation){
 }
 
 /*
-FUNCTION:          getInternalArray()
-DESCRIPTION:       Gets a copy of the internal sphere array
-RETURNS: 		   The sphere array
-*/
-inline Array ChunkMap::getInternalArray(){
-	Array out;
-	for(Vector3 cur: sphere)
-		out.push_back(cur);
-	return out;
-}
-
-/*
 FUNCTION:          getIndex(int x, int y)
 DESCRIPTION:       Gets the number of elements which appear in the array before the given x, y point
 RETURNS: 		   The element count
 */
-int ChunkMap::getIndex(int x, int y){
+inline int ChunkMap::getIndex(int x, int y){
 	// If the point is in the index, return the count
 	if(index.find(x) != index.end())
 		if(index[x].find(y) != index[x].end())
@@ -160,7 +109,7 @@ FUNCTION:          getPointIndex(Vector3 search)
 DESCRIPTION:       Gets a element stored at the provided search point
 RETURNS: 		   The element's index in the array
 */
-int ChunkMap::getPointIndex(Vector3 search){
+int ChunkMap::getChunkIndex(Vector3 search){
 	/*
 		This algorithm narrows its results to a single z-axis column (from the index)
 		and then remaps the z-axis point to the [0, axis.size()] range
@@ -178,16 +127,30 @@ int ChunkMap::getPointIndex(Vector3 search){
 }
 
 /*
-FUNCTION:          getPoint(const Vector3& search)
+FUNCTION:          getChunk(const Vector3& search)
 DESCRIPTION:       Gets a element stored at the provided search point
 RETURNS: 		   The element
 */
-inline Vector3 ChunkMap::getPoint(Vector3 search){
+inline Chunk* ChunkMap::getChunk(Vector3 search){
 	// Get the index from the array
-	int index = getPointIndex(search);
+	int index = getChunkIndex(search);
 	// If the index value is in the array return the point stored there
 	if(index != NULL_INDEX)
 		return sphere[index];
+	// Otherwise, return null
+	return nullptr;
+}
+
+
+
+inline Vector3 ChunkMap::getChunkCenter(Vector3 search, bool worldSpace){
+	Chunk* chunk = getChunk(search);
+	if(chunk != nullptr)
+		if(worldSpace){
+			return chunk->getCenter();
+		} else {
+			return chunk->getCenter() / 32;
+		}
 	// Otherwise, return null
 	return NULL_VECTOR;
 }
@@ -197,29 +160,28 @@ FUNCTION:          getCube(Vector3 origin, int radius)
 DESCRIPTION:       Gets a cube of elements centered at <origin> of radius <radius>
 RETURNS: 		   An array containing the cube
 */
-std::vector<Vector3> ChunkMap::getCube(int radius, Vector3 origin){
-	std::vector<Vector3> out; // Variable storing the output array
+std::vector<Chunk*> ChunkMap::getCube(int radius, Vector3 origin){
+	std::vector<Chunk*> out; // Variable storing the output array
 	// Generate a box of radius <radius>
 	for(int x = radius; x > -radius; x--)
 		for(int y = radius; y > -radius; y--)
 			for(int z = radius; z > -radius; z--){
 				// Get the point from the main array (compensating for origin)
-				Vector3 point = getPoint(Vector3(x, y, z) + origin);
+				Chunk* chunk = getChunk(Vector3(x, y, z) + origin);
 				// If the point exists add it to the output array
-				if(point != NULL_VECTOR)
-					out.push_back(point);
+				if(chunk != nullptr)
+					out.push_back(chunk);
 			}
 	return out;
 }
-Array inline ChunkMap::getCubeExport(int radius, Vector3 origin){ return godotize(getCube(radius, origin)); }
 
 /*
 FUNCTION:          getCubeRim(Vector3 origin, int radius)
 DESCRIPTION:       Gets a the outer rim of a cube of elements centered at <origin> of radius <radius>
 RETURNS: 		   An array containing the rim
 */
-std::vector<Vector3> ChunkMap::getCubeRim(int radius, Vector3 origin){
-	std::vector<Vector3> out; // Variable storing the output array
+std::vector<Chunk*> ChunkMap::getCubeRim(int radius, Vector3 origin){
+	std::vector<Chunk*> out; // Variable storing the output array
 	// Generate a box of radius <radius>
 	for(int x = radius; x > -radius; x--)
 		for(int y = radius; y > -radius; y--)
@@ -227,63 +189,62 @@ std::vector<Vector3> ChunkMap::getCubeRim(int radius, Vector3 origin){
 				// Remove everything not on the rim
 				if(x == radius || x == -radius + 1 || y == radius || y == -radius + 1 || z == radius || z == -radius + 1) {
 					// Get the point from the main array (compensating for origin)
-					Vector3 point = getPoint(Vector3(x, y, z) + origin);
+					Chunk* chunk = getChunk(Vector3(x, y, z) + origin);
 					// If the point exists add it to the output array
-					if(point != NULL_VECTOR)
-						out.push_back(point);
+					if(chunk != nullptr)
+						out.push_back(chunk);
 				}
 	return out;
 }
-Array ChunkMap::getCubeRimExport(int radius, Vector3 origin){ return godotize(getCubeRim(radius, origin)); }
 
 /*
 FUNCTION:          getSphere(Vector3 origin, int radius)
 DESCRIPTION:       Gets a sphere of elements centered at <origin> of radius <radius>
 RETURNS: 		   An array containing the sphere
 */
-std::vector<Vector3> ChunkMap::getSphere(int radius, Vector3 origin){
-	std::vector<Vector3> out; // Variable storing the output array
+std::vector<Chunk*> ChunkMap::getSphere(int radius, Vector3 origin){
+	std::vector<Chunk*> out; // Variable storing the output array
 	// Generate a box of radius <radius>
 	for(int x = radius; x >= -radius; x--)
 		for(int y = radius; y >= -radius; y--)
 			for(int z = radius; z >= -radius; z--){
 				// Get the point from the main array (compensating for origin)
-				Vector3 point = getPoint(Vector3(x, y, z) + origin);
+				Chunk* chunk = getChunk(Vector3(x, y, z) + origin);
 				// If the point exists...
-				if(point != NULL_VECTOR)
+				if(chunk != nullptr)
 					// And is inside the sphere, add it to the array
-					if ((radius * radius) >= point.distance_squared_to(origin))
-							out.push_back(point);
+					if ((radius * radius) >= getChunkCenter(Vector3(x, y, z) + origin).distance_squared_to(origin))
+							out.push_back(chunk);
 			}
 	return out;
 }
-Array ChunkMap::getSphereExport(int radius, Vector3 origin){ return godotize(getSphere(radius, origin)); }
 
 /*
 FUNCTION:          getSphereRim(Vector3 origin, int radius)
 DESCRIPTION:       Gets the outer rim of a sphere of elements centered at <origin> of radius <radius>
 RETURNS: 		   An array containing the rim
 */
-std::vector<Vector3> ChunkMap::getSphereRim(int radius, Vector3 origin){
-	std::vector<Vector3> out; // Variable storing the output array
+std::vector<Chunk*> ChunkMap::getSphereRim(int radius, Vector3 origin){
+	std::vector<Chunk*> out; // Variable storing the output array
 	// Generate a box of radius <radius>
 	for(int x = radius; x >= -radius; x--)
 		for(int y = radius; y >= -radius; y--)
 			for(int z = radius; z >= -radius; z--){
 				// Get the point from the main array (compensating for origin)
-				Vector3 point = getPoint(Vector3(x, y, z) + origin);
+				Chunk* chunk = getChunk(Vector3(x, y, z) + origin);
 				// If the point exists...
-				if(point != NULL_VECTOR)
+				if(chunk != nullptr){
+					Vector3 point = getChunkCenter(Vector3(x, y, z) + origin);
 					// And is inside the sphere
 					if ((radius * radius) >= point.distance_squared_to(origin))
 						// But is not inside a sphere of radius <radius> - 1
 						if(((radius - 1) * (radius - 1)) < point.distance_squared_to(origin))
 							// Add it to the array
-							out.push_back(point);
+							out.push_back(chunk);
+				}
 			}
 	return out;
 }
-Array ChunkMap::getSphereRimExport(int radius, Vector3 origin){ return godotize(getSphereRim(radius, origin)); }
 
 /*
 FUNCTION:          initSphere()
@@ -294,7 +255,7 @@ NOTES:			   All points are integer offsets from the origin
 */
 void ChunkMap::initSphere(){
 	// Clear sphere (reallocating)
-	{ std::vector<Vector3>().swap(sphere); }
+	{ std::vector<Chunk*>().swap(sphere); }
 	/*
 		Considered pre-reserving the required space but... Any benefit is well
 		within the bounds of experimentation error
@@ -313,7 +274,7 @@ void ChunkMap::initSphere(){
 				// Ignore points not inside sphere
 				if ((radius * radius) >= temp.distance_squared_to(origin)){
 					// Add the current point to the output array
-					sphere.push_back(temp);
+					sphere.push_back( generateChunk(temp) );
 					// For every z we add to the array, increment our total
 					total++;
 				}

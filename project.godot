@@ -16,7 +16,7 @@ _global_script_class_icons={
 [application]
 
 config/name="Voxel-Godot"
-run/main_scene="res://Chunk Renderer Test.tscn"
+run/main_scene="res://main.tscn"
 config/icon="res://icon.png"
 
 [display]
@@ -56,7 +56,7 @@ ui_down={
 
 [memory]
 
-limits/message_queue/max_size_kb=8192
+limits/message_queue/max_size_kb=400000
 
 [rendering]
 

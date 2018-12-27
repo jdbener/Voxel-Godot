@@ -10,16 +10,21 @@ Joshua Dahl		   2018-12-17		  1.1 - Bug fixes on getSphere, exposed getInternalA
                                         code in getPoint to getPointIndex
 Joshua Dahl		   2018-12-19		  1.2 - Implemented getShereRim and getCubeRim, split the cube/sphere getters into two functions (one returning
                                         A vector and the other returning a Godot Array)
+Joshua Dahl		   2018-12-26		  1.3 - Degodotized file for integration with ChunkRenderer
 */
+#ifndef CHUNKMAP_H
+#define CHUNKMAP_H
+
 #include <Godot.hpp>
 #include <Spatial.hpp>
 #include <Vector3.hpp>
 #include <Array.hpp>
 
-//#include <Chunk.hpp>
+#include "world/Chunk.hpp"
 
 #include <map>
 #include <vector>
+#include <memory>
 
 using namespace godot;
 
@@ -27,15 +32,11 @@ using namespace godot;
 const int NULL_INDEX = -999;
 const Vector3 NULL_VECTOR(-999, -999, -999);
 
-class ChunkMap: public Spatial {
-  GODOT_CLASS(ChunkMap, Spatial);
+class ChunkMap {
 public:
-    void _init();
-	static void _register_methods();
-
 	int radius;	// Variable storing the radius of the sphere
 	Vector3 origin; // Variable storing the origin of the sphere (defaults to (0, 0, 0))
-	std::vector<Vector3> sphere; // Array storing the elements which make up the sphere
+	std::vector<Chunk*> sphere; // Array storing the elements which make up the sphere
 	std::map<short, std::map<short, int>> index; // Stores the number of elements at the end of each x/y location
 
 	void _enter_tree();
@@ -43,26 +44,21 @@ public:
 
 	void reinitSphere(Vector3 translation);
 
-    inline Array getInternalArray();
-
 	inline int getIndex(int x, int y);
-    int getPointIndex(Vector3 search);
-	inline Vector3 getPoint(Vector3 search);
+    int getChunkIndex(Vector3 search);
+	inline Chunk* getChunk(Vector3 search);
+    inline Vector3 getChunkCenter(Vector3 search, bool worldSpace = false);
 
-    std::vector<Vector3> getCube(int radius, Vector3 origin = Vector3(0, 0, 0));
-    std::vector<Vector3> getCubeRim(int radius, Vector3 origin = Vector3(0, 0, 0));
-    std::vector<Vector3> getSphere(int radius, Vector3 origin = Vector3(0, 0, 0));
-    std::vector<Vector3> getSphereRim(int radius, Vector3 origin = Vector3(0, 0, 0));
+    std::vector<Chunk*> getCube(int radius, Vector3 origin = Vector3(0, 0, 0));
+    std::vector<Chunk*> getCubeRim(int radius, Vector3 origin = Vector3(0, 0, 0));
+    std::vector<Chunk*> getSphere(int radius, Vector3 origin = Vector3(0, 0, 0));
+    std::vector<Chunk*> getSphereRim(int radius, Vector3 origin = Vector3(0, 0, 0));
 
-    Array getCubeExport(int radius, Vector3 origin = Vector3(0, 0, 0));
-    Array getCubeRimExport(int radius, Vector3 origin = Vector3(0, 0, 0));
-    Array getSphereExport(int radius, Vector3 origin = Vector3(0, 0, 0));
-    Array getSphereRimExport(int radius, Vector3 origin = Vector3(0, 0, 0));
-
-    ChunkMap(){
-
-    }
+    ChunkMap(int _radius = 0, Vector3 _origin = Vector3());
+    ~ChunkMap();
 private:
 	void initSphere();
 	void initIndex();
 };
+
+#endif

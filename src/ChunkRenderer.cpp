@@ -1,5 +1,5 @@
 /*
-FILE:              Renderer.hpp
+FILE:              ChunkRenderer.hpp
 DESCRIPTION:       Class which provides a means for interfacing Chunks with Godot
 
 MODIFICATION HISTORY:
@@ -8,13 +8,15 @@ Author             Date               Version
 Joshua Dahl		   2018-12-24		  0.0 - Initial testing version
 Joshua Dahl		   2018-12-25		  0.1 - Added support for opaque blocks
 Joshua Dahl		   2018-12-25		  0.2 - Optimized interior faces to never be rendered
+Joshua Dahl		   2018-12-26		  0.3 - Integrated ChunkMap
 */
 
-#include "Renderer.hpp"
+#include "ChunkRenderer.hpp"
 #include "Godotize.hpp"
 #include "BlockList.hpp"
 #include "Vector3Extra.hpp"
 #include "MaterialList.hpp"
+#include "ChunkGenerator.hpp"
 
 #include <CSGBox.hpp>
 #include <CSGMesh.hpp>
@@ -25,24 +27,21 @@ Joshua Dahl		   2018-12-25		  0.2 - Optimized interior faces to never be rendere
 #include <CollisionShape.hpp>
 #include <BoxShape.hpp>
 
+#include <Panel.hpp>
+#include <Label.hpp>
+
 #include <cstdlib>
 
 #include <string>
 #include <iostream>
+#include <chrono>
 #include <thread>
 #include <fstream>
-
-#include <SimplexNoise/src/SimplexNoise.h>
 
 #include <ResourceLoader.hpp>
 #include <Material.hpp>
 
 using namespace std;
-
-// Constant representing a path to the folder where the world is stored
-const string worldPath = "worlds/Test/";
-// Instance of SimplexNoise library for temp world gen
-SimplexNoise noiseGen = SimplexNoise(1, 1, 2, .5);
 
 // Constants representing the translations and rotations to make all 6 faces of a cube out of planes
 const Vector3 upTrans = Vector3(0, .5, 0), upRot = Vector3(0, 180, 0),
@@ -58,60 +57,9 @@ DESCRIPTION:   Used to tell the engine what functions this script is providing
 */
 void ChunkRenderer::_register_methods() {
     register_method("_enter_tree", &ChunkRenderer::_enter_tree);
+	register_method("_process", &ChunkRenderer::_process);
 
     //register_method("generateChunk", &ChunkRenderer::generateChunk);
-}
-
-/*
-NAME:          setSolidityTest (Block& b)
-DESCRIPTION:   Prototype chunk generator which uses layered simplex noise to generate a
-				max block height within the interval [8, 20]
-*/
-void setSolidityTest (Block& b){
-	const int max = 10,
-            min = -2,
-			seed = 12345;
-    const float scale = 200;
-
-	Vector3 center = b.getCenter();
-    if(b.y < noiseGen.fractal(5, center.x / scale + seed, center.z / scale + seed) * max - (max - min) + 10)
-        b.setBlockRef(2);
-
-	if(center.y >= 14 && center.z < 15)
-		b.setBlockRef(1);
-}
-
-/*
-NAME:          generateChunk(Vector3 center, bool forceRegenerate, bool worldSpace)
-DESCRIPTION:   Either loads the chunk centered at <center> from disc or generates a new one if loading isn't possible
-NOTES:			Setting forceRegenerate to true will cause the function to never load from disc
-*/
-Chunk* ChunkRenderer::generateChunk(Vector3 center, bool forceRegenerate, bool worldSpace){
-	// Create the name of the chunk file to load
-    string filePath = worldPath + to_string((int) center.x) + "|" + to_string((int) center.y) + "|" + to_string((int) center.z) + ".chunk";
-	// If we are taking in chunk space coordinates convert them to world space
-    if(worldSpace) center *= 32;
-
-	// Create a pointer to the new chunk and heap allocate it
-    Chunk* out = new Chunk(center);
-	// If the chunk file exists, load it
-    if(ifstream(filePath).good() && !forceRegenerate){
-        loadChunk(filePath.c_str(), *out);
-		// Debug
-	    Godot::print("Loaded chunk from: " + godotize(filePath));
-	// Otherwise, generate a new chunk and save it to the file
-	} else {
-        out->runOnBlocks(setSolidityTest);
-        saveChunk(filePath.c_str(), *out);
-		// Debug
-	    Godot::print("Saved chunk to: " + godotize(filePath));
-    }
-
-	/*
-		TODO: when I merge in the chunk map, part of its reinit processes has to include freeing chunks
-	*/
-	// Return the allocated chunk
-    return out;
 }
 
 /*
@@ -295,6 +243,7 @@ DESCRIPTION:   Converts the provided blockRef into a constructive solid cube of 
 CSGCombiner* makeVoxelNodeOpaque(Block* block, int scale = 1){
 	// Create a combiner to merge the cube together
     CSGCombiner* box = CSGCombiner::_new();
+	bool render = false;
 
 	// If the top face's material is 0 or it is facing an opaque block don't render it
     if(block->blockRef->up > 0 && !directionOpaque(block, Vector3(0, 1, 0), scale)){
@@ -308,6 +257,8 @@ CSGCombiner* makeVoxelNodeOpaque(Block* block, int scale = 1){
 		up->set_scale(expand(scale));
 		// Parent the plane to the cube merger
         box->call_deferred("add_child", up);
+		// We baked a face, set render to true
+		render = true;
     }
 
 	// If the bottom face's material is 0 or it is facing an opaque block don't render it
@@ -322,6 +273,8 @@ CSGCombiner* makeVoxelNodeOpaque(Block* block, int scale = 1){
 		down->set_scale(expand(scale));
 		// Parent the plane to the cube merger
         box->call_deferred("add_child", down);
+		// We baked a face, set render to true
+		render = true;
     }
 
 	// If the left face's material is 0 or it is facing an opaque block don't render it
@@ -336,6 +289,8 @@ CSGCombiner* makeVoxelNodeOpaque(Block* block, int scale = 1){
 		left->set_scale(expand(scale));
 		// Parent the plane to the cube merger
         box->call_deferred("add_child", left);
+		// We baked a face, set render to true
+		render = true;
     }
 
 	// If the right face's material is 0 or it is facing an opaque block don't render it
@@ -350,6 +305,8 @@ CSGCombiner* makeVoxelNodeOpaque(Block* block, int scale = 1){
 		right->set_scale(expand(scale));
 		// Parent the plane to the cube merger
         box->call_deferred("add_child", right);
+		// We baked a face, set render to true
+		render = true;
     }
 
 	// If the front face's material is 0 or it is facing an opaque block don't render it
@@ -364,6 +321,8 @@ CSGCombiner* makeVoxelNodeOpaque(Block* block, int scale = 1){
 		front->set_scale(expand(scale));
 		// Parent the plane to the cube merger
         box->call_deferred("add_child", front);
+		// We baked a face, set render to true
+		render = true;
     }
 
 	// If the back face's material is 0 or it is facing an opaque block don't render it
@@ -378,6 +337,8 @@ CSGCombiner* makeVoxelNodeOpaque(Block* block, int scale = 1){
 		back->set_scale(expand(scale));
 		// Parent the plane to the cube merger
         box->call_deferred("add_child", back);
+		// We baked a face, set render to true
+		render = true;
     }
 
 	// Position the cube where it should be
@@ -394,6 +355,7 @@ DESCRIPTION:   Converts the provided <block> into a cube of the provided scale
 NOTES:			Switches between opaque and translucent code depending on blockRef
 */
 inline Spatial* makeVoxelNode(Block* block, int scale = 1){
+	// If this voxel is opaque, generate mesh instances instead of CSG
 	if(block->blockRef->opaque)
 		return makeVoxelNodeOpaque(block, scale);
 	return makeVoxelNodeTranslucent(block, scale);
@@ -409,7 +371,7 @@ Spatial* makeVoxelNode(Chunk* chunk, Vector3 center, matID up, matID down, matID
 	// If this subChunk isn't solid, don't generate collisions
 	if(up == 0 && down == 0 && left == 0 && right == 0 && front == 0 && back == 0)
 		temp.solid = false;
-	// If this subChunk isn't opaque, don't generate csg blocks
+	// If this subChunk isn't opaque, generate instances instead of CSG
 	if(!BlockList::getReference(up)->opaque || !BlockList::getReference(down)->opaque ||
 			!BlockList::getReference(left)->opaque || !BlockList::getReference(right)->opaque ||
 			!BlockList::getReference(front)->opaque || !BlockList::getReference(back)->opaque)
@@ -464,6 +426,8 @@ void ChunkRenderer::bakeChunk(Chunk* chunk, int LoD){
 				chunk->node->call_deferred("add_child", makeVoxelNode(chunk, chunk->getCenter(), chunk->up, chunk->down, chunk->left, chunk->right, chunk->front, chunk->back, Chunk::SCALE) );
 			}
 
+
+
 			// Unlock the chunk
 			chunk->locked = false;
 		}
@@ -479,12 +443,55 @@ void ChunkRenderer::_enter_tree(){
 	*/
     MaterialList::initMaterialList();
 
-    Chunk* chunk = generateChunk(Vector3(0, 0, 0), true);
-	Chunk* chunk2 = generateChunk(Vector3(0, 0, 1), true);
-	Chunk* chunk3 = generateChunk(Vector3(0, 0, 2), true);
-	Chunk* chunk4 = generateChunk(Vector3(0, 0, 3), true);
-	Chunk* chunk5 = generateChunk(Vector3(0, 0, 4), true);
-	Chunk* chunk6 = generateChunk(Vector3(0, -1, 4), true);
+	chunkMap = ChunkMap(4 * 1, Vector3());
+
+	//add_child(nullptr);
+
+	/*for(Chunk* cur: chunkMap.sphere){
+		thread(bakeChunk, cur, 0).detach();
+	}
+
+	int finished = 0;
+	while(finished < chunkMap.sphere.size()){
+		finished = 0;
+		for(Chunk* cur: chunkMap.sphere)
+			if(cur->node){
+				if(!cur->added){
+					call_deferred("add_child", cur->node);
+					cur->added = true;
+				}
+				finished++;
+			}
+		Godot::print("Finished! " + String::num(finished / chunkMap.sphere.size()));
+		this_thread::sleep_for(chrono::milliseconds(1000));
+	}
+
+	Godot::print("Building World Geometry");
+
+
+			//thread b0/*, b1, b2, b3*/;
+			/*if(i < chunkMap.sphere.size())
+				b0 = thread(bakeChunk, chunkMap.sphere[i], 0);
+			if(i + 1 < chunkMap.sphere.size())
+				b1 = thread(bakeChunk, chunkMap.sphere[i + 1], 0);
+			if(i + 2 < chunkMap.sphere.size())
+				b2 = thread(bakeChunk, chunkMap.sphere[i + 2], 0);
+			if(i + 3 < chunkMap.sphere.size())
+				b3 = thread(bakeChunk, chunkMap.sphere[i + 3], 0);*/
+
+			/*if(b0.joinable()) { b0.join(); add_child(chunkMap.sphere[i]->node); }
+			if(b1.joinable()) { b1.join(); add_child(chunkMap.sphere[i + 1]->node); }
+			if(b2.joinable()) { b2.join(); add_child(chunkMap.sphere[i + 2]->node); }
+			if(b3.joinable()) { b3.join(); add_child(chunkMap.sphere[i + 3]->node); }*/
+
+
+
+    /*Chunk* chunk = generateChunk(Vector3(0, 0, 0));
+	Chunk* chunk2 = generateChunk(Vector3(0, 0, 1));
+	Chunk* chunk3 = generateChunk(Vector3(0, 0, 2));
+	Chunk* chunk4 = generateChunk(Vector3(0, 0, 3));
+	Chunk* chunk5 = generateChunk(Vector3(0, 0, 4));
+	Chunk* chunk6 = generateChunk(Vector3(0, -1, 4));
 
     thread bc0(bakeChunk, chunk, 0);
 	thread(bakeChunk, chunk2, 1).detach();
@@ -499,5 +506,29 @@ void ChunkRenderer::_enter_tree(){
 	add_child(chunk3->node);
 	add_child(chunk4->node);
 	add_child(chunk5->node);
-	add_child(chunk6->node);
+	add_child(chunk6->node);*/
+}
+
+void ChunkRenderer::_process(float delta){
+	static int i = 0;
+
+	Panel* panel = Node::cast_to<Panel>(get_parent()->get_node("CanvasLayer/Loading Panel"));
+	Label* label = Node::cast_to<Label>(panel->get_node("Loading"));
+
+	if(i < chunkMap.sphere.size()){
+		thread t;
+		if(i < chunkMap.sphere.size()){
+			int LoD = (chunkMap.sphere[i]->getCenter() / 32).distance_squared_to(chunkMap.origin) / chunkMap.radius;
+			t = thread(bakeChunk, chunkMap.sphere[i], LoD);
+
+			if(label) label->set_text("Loading: " + String::num(((float) i / chunkMap.sphere.size()) * 100, 2) + "%");
+		}
+
+		t.join(); add_child(chunkMap.sphere[i]->node);
+		i++;
+	} else {
+		if(panel) panel->set_visible(false);
+
+
+	}
 }
