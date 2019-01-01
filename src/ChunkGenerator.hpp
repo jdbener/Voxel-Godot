@@ -23,6 +23,11 @@ Joshua Dahl		   2018-12-24		  0.0 - Initial testing version
 
 using namespace std;
 
+/*
+GENERATION: https://github.com/UnknownShadow200/ClassicalSharp/wiki/Minecraft-Classic-map-generation-algorithm
+CAVES: https://www.youtube.com/watch?v=Df4Hidvq11M (cellular (worley) noise)
+*/
+
 
 // Constant representing a path to the folder where the world is stored
 static const std::string worldPath = "worlds/Test/";
@@ -43,6 +48,31 @@ static void setSolidityTest (Block& b){
 	Vector3 center = b.getCenter();
     if(b.y < noiseGen.fractal(5, center.x / scale + seed, center.z / scale + seed) * max - (max - min) + 10)
         b.setBlockRef(2);
+
+	if(b.x > -8 && b.x < -6)
+		if(b.y > -4 && b.y < -2)
+			if(b.z > -8 && b.z < -6)
+				b.setBlockRef(2);
+
+	if(b.x > -4 && b.x < -2)
+		if(b.y > -4 && b.y < -2)
+			if(b.z > -8 && b.z < -6)
+				b.setBlockRef(2);
+
+	/*Vector3 s = Vector3(-5, -5, -7);
+		if(b.x > s.x-1 && b.x < s.x+1)
+			if(b.y > s.y-1 && b.y < s.y+1)
+				if(b.z > s.z-1 && b.z < s.z+1)
+					b.setBlockRef(0);*/
+
+
+	/*s = Vector3(-5, -5, -9);
+	if(b.x > s.x-1 && b.x < s.x+1)
+		if(b.y > s.y-1 && b.y < s.y+1)
+			if(b.z > s.z-1 && b.z < s.z+1)
+				b.setBlockRef(0);*/
+
+
 
 	//if(center.y >= 14 && center.z < 15)
 	//	b.setBlockRef(1);

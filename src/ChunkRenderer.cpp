@@ -9,6 +9,7 @@ Joshua Dahl		   2018-12-24		  0.0 - Initial testing version
 Joshua Dahl		   2018-12-25		  0.1 - Added support for opaque blocks
 Joshua Dahl		   2018-12-25		  0.2 - Optimized interior faces to never be rendered
 Joshua Dahl		   2018-12-26		  0.3 - Integrated ChunkMap
+Joshua Dahl		   2018-12-31		  1.0 - Switched from instancing to using a mesh generator
 */
 
 #include "ChunkRenderer.hpp"
@@ -26,9 +27,14 @@ Joshua Dahl		   2018-12-26		  0.3 - Integrated ChunkMap
 #include <StaticBody.hpp>
 #include <CollisionShape.hpp>
 #include <BoxShape.hpp>
+#include <SurfaceTool.hpp>
+#include <ArrayMesh.hpp>
+#include <Vector2.hpp>
 
 #include <Panel.hpp>
 #include <Label.hpp>
+
+#include <RayCast.hpp>
 
 #include <cstdlib>
 
@@ -37,6 +43,7 @@ Joshua Dahl		   2018-12-26		  0.3 - Integrated ChunkMap
 #include <chrono>
 #include <thread>
 #include <fstream>
+#include <algorithm>
 
 #include <ResourceLoader.hpp>
 #include <Material.hpp>
@@ -64,36 +71,40 @@ void ChunkRenderer::_register_methods() {
 
 /*
 NAME:          directionOpaque(Block* in, Vector3 direction, int scale = 1)
-DESCRIPTION:   Returns true if the block in <direction> in relation to this <in> is opaque
+Returns:   Returns true if the block in <direction> in relation to this block (<in>) is opaque
 */
 bool directionOpaque(Block* in, Vector3 direction, int scale = 1){
 	if(scale == 1){
-		Block* block = in->chunk->getBlock(integize(in->getCenter()) + direction * 2);
+		/*
+			TODO: load block/subChunk from chunkmap instead of chunk
+			this should theoretically stop internal chunk faces from rendering
+		*/
+		Block* block = in->chunk->getBlock(in->getCenter() + direction * 2);
 		// If the block exists...
 		if(block)
 			// And is opaque...
 			if(block->blockRef->opaque)
 				// Return true
 				return true;
-	} else if (scale == 2) {
-		SubChunk2* chunk = in->chunk->getSubChunk2(integize(in->getCenter()) + direction * 2 * scale);
-		// If the block exists...
+	} else if (scale == SubChunk2::SCALE) {
+		SubChunk2* chunk = in->chunk->getSubChunk2(in->getCenter() + direction * 2 * scale);
+		// If the subChunk exists...
 		if(chunk)
 			// And is opaque...
 			if(chunk->opaque)
 				// Return true
 				return true;
-	} else if (scale == 4) {
-		SubChunk4* chunk = in->chunk->getSubChunk4(integize(in->getCenter()) + direction * 2 * scale);
-		// If the block exists...
+	} else if (scale == SubChunk4::SCALE) {
+		SubChunk4* chunk = in->chunk->getSubChunk4(in->getCenter() + direction * 2 * scale);
+		// If the subChunk exists...
 		if(chunk)
 			// And is opaque...
 			if(chunk->opaque)
 				// Return true
 				return true;
-	} else if (scale == 8) {
-		SubChunk8* chunk = in->chunk->getSubChunk8(integize(in->getCenter()) + direction * 2 * scale);
-		// If the block exists...
+	} else if (scale == SubChunk8::SCALE) {
+		SubChunk8* chunk = in->chunk->getSubChunk8(in->getCenter() + direction * 2 * scale);
+		// If the subChunk exists...
 		if(chunk)
 			// And is opaque...
 			if(chunk->opaque)
@@ -104,268 +115,259 @@ bool directionOpaque(Block* in, Vector3 direction, int scale = 1){
 }
 
 /*
-NAME:          makeVoxelNodeTranslucent(Block* block, int scale = 1)
-DESCRIPTION:   Converts the provided blockRef into a cube of the provided scale
+NAME:			makeVoxelNode(Block* block, bool last = false, int scale)
+DESCRIPTION:	Converts the provided <block> into a cube of the provided <scale>
+RETURNS:		Nullptr if this is not the <last> call, otherwise it returns a pointer
+				to a MeshInstance containing the generated Mesh
 */
-Spatial* makeVoxelNodeTranslucent(Block* block, int scale = 1) {
-	// Create a spatial to hold the cube
-    Spatial* box = Spatial::_new();
-	// Variable storing weather or not any faces were baked
-	bool render = false;
+Spatial* makeVoxelNode(Block* block, bool last = false, int scale = 1){
+	/*
+	MACRO:			initSide(side)
+	DESCRIPTION:	A macro which adds a <matID, SurfaceTool> pair to chunkSurfaces map.
+					Also defines a variable <side> which is a pointer to the matID's SurfaceTool
+	*/
+	#define initSide(side)	\
+		/* If a surface for the matID doesn't exist in the map... */ \
+		if(!chunkSurfaces[block->blockRef->side]){ 	\
+			/* Create a new surface */	\
+			chunkSurfaces[block->blockRef->side] = SurfaceTool::_new();	\
+			/* Declare that the surface is made of triangles */	\
+			chunkSurfaces[block->blockRef->side]->begin(Mesh::PrimitiveType::PRIMITIVE_TRIANGLES);	\
+			/* Set the surface's material */	\
+			chunkSurfaces[block->blockRef->side]->set_material(MaterialList::getMaterial(block->blockRef->side));	\
+		}	\
+		/* Create a pointer to the surface for the matID */	\
+		SurfaceTool* side = chunkSurfaces[block->blockRef->side]
 
-	// If the top face's material is 0 don't render it
-    if(block->blockRef->up > 0 && !directionOpaque(block, Vector3(0, 1, 0), scale)){
-		// Otherwise... Create a new mesh
-        MeshInstance* up = MeshInstance::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        up->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->up));
-		// Position the plane
-        up->set_translation(upTrans * scale);
-        up->set_rotation_degrees(upRot);
-		up->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", up);
-		// We baked a face, set render to true
-		render = true;
-    }
+	/*------------------------------------------------------------------------*/
+	// Variable storing <matID, SurfaceTool> pairs
+	static map<matID, SurfaceTool*> chunkSurfaces;
 
-	// If the right face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->down > 0 && !directionOpaque(block, Vector3(0, -1, 0), scale)){
-		// Otherwise... Create a new mesh
-        MeshInstance* down = MeshInstance::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        down->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->down));
-		// Position the plane
-        down->set_translation(downTrans * scale);
-        down->set_rotation_degrees(downRot);
-		down->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", down);
-		// We baked a face, set render to true
-		render = true;
-    }
+	// If the top of the block is not null, and is not facing an opaque block
+	if(block->blockRef->up && !directionOpaque(block, Vector3(0, 1, 0), scale)){
+		// Setup the SurfaceTool
+		initSide(up);
 
-	// If the left face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->left > 0 && !directionOpaque(block, Vector3(-1, 0, 0), scale)){
-		// Otherwise... Create a new mesh
-        MeshInstance* left = MeshInstance::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        left->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->left));
-		// Position the plane
-        left->set_translation(leftTrans * scale);
-        left->set_rotation_degrees(leftRot);
-		left->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", left);
-		// We baked a face, set render to true
-		render = true;
-    }
+		// Add the vertexes
+		// 1
+		up->add_uv(Vector2(0, 0));
+		up->add_vertex(Vector3(-.5, .5, -.5) * scale + block->getCenter() / 2);
 
-	// If the right face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->right > 0 && !directionOpaque(block, Vector3(1, 0, 0), scale)){
-		// Otherwise... Create a new mesh
-        MeshInstance* right = MeshInstance::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        right->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->right));
-		// Position the plane
-        right->set_translation(rightTrans * scale);
-        right->set_rotation_degrees(rightRot);
-		right->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", right);
-		// We baked a face, set render to true
-		render = true;
-    }
+		// 2
+		up->add_uv(Vector2(1, 0));
+		up->add_vertex(Vector3(.5, .5, -.5) * scale + block->getCenter() / 2);
 
-	// If the front face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->front > 0 && !directionOpaque(block, Vector3(0, 0, 1), scale)){
-		// Otherwise... Create a new mesh
-        MeshInstance* front = MeshInstance::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        front->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->front));
-		// Position the plane
-        front->set_translation(frontTrans * scale);
-        front->set_rotation_degrees(frontRot);
-		front->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", front);
-		// We baked a face, set render to true
-		render = true;
-    }
+		//3
+		up->add_uv(Vector2(1, 1));
+		up->add_vertex(Vector3(.5, .5, .5) * scale + block->getCenter() / 2);
 
-	// If the back face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->back > 0 && !directionOpaque(block, Vector3(0, 0, -1), scale)){
-		// Otherwise... Create a new mesh
-        MeshInstance* back = MeshInstance::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        back->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->back));
-		// Position the plane
-        back->set_translation(backTrans * scale);
-        back->set_rotation_degrees(backRot);
-		back->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", back);
-		// We baked a face, set render to true
-		render = true;
-    }
+		//3
+		up->add_uv(Vector2(1, 1));
+		up->add_vertex(Vector3(.5, .5, .5) * scale + block->getCenter() / 2);
 
-	// If the block is solid and at least one of the faces was rendered,
-	// generate a collision model for it
-	if(block->blockRef->solid && render){
-		// Create a collision node
-		StaticBody* collisionNode = StaticBody::_new();
-		// Create a collision shape node
-		CollisionShape* collisionShape = CollisionShape::_new();
-		// Create a box shape
-		Ref<Shape> shape = BoxShape::_new();
+		// 4
+		up->add_uv(Vector2(0, 1));
+		up->add_vertex(Vector3(-.5, .5, .5) * scale + block->getCenter() / 2);
 
-		// Apply the box shape to the collision shape
-		collisionShape->set_shape(shape);
-		// Apply the collision shape to the collision node
-		collisionNode->add_child(collisionShape);
-
-		// Set the scale of the of the collision node
-		collisionNode->set_scale(expand(scale));
-		// Parent the collision node to the block
-		box->call_deferred("add_child", collisionNode);
+		// 1
+		up->add_uv(Vector2(0, 0));
+		up->add_vertex(Vector3(-.5, .5, -.5) * scale + block->getCenter() / 2);
 	}
 
-	// Position the cube where it should be
-    box->set_translation(block->getCenter() / 2);
-	// Return a pointer to the cube
-    return box;
-}
+	// If the bottom of the block is not null, and is not facing an opaque block
+	if(block->blockRef->down && !directionOpaque(block, Vector3(0, -1, 0), scale)){
+		// Setup the SurfaceTool
+		initSide(down);
 
-/*
-NAME:          makeVoxelNodeOpaque(Block* block, int scale = 1)
-DESCRIPTION:   Converts the provided blockRef into a constructive solid cube of the provided scale
-*/
-CSGCombiner* makeVoxelNodeOpaque(Block* block, int scale = 1){
-	// Create a combiner to merge the cube together
-    CSGCombiner* box = CSGCombiner::_new();
-	bool render = false;
 
-	// If the top face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->up > 0 && !directionOpaque(block, Vector3(0, 1, 0), scale)){
-		// Otherwise... Create a new mesh
-        CSGMesh* up = CSGMesh::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        up->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->up));
-		// Position the plane
-        up->set_translation(upTrans * scale);
-        up->set_rotation_degrees(upRot);
-		up->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", up);
-		// We baked a face, set render to true
-		render = true;
-    }
+		//3
+		down->add_uv(Vector2(1, 1));
+		down->add_vertex(Vector3(.5, -.5, .5) * scale + block->getCenter() / 2);
 
-	// If the bottom face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->down > 0 && !directionOpaque(block, Vector3(0, -1, 0), scale)){
-		// Otherwise... Create a new mesh
-        CSGMesh* down = CSGMesh::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        down->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->down));
-		// Position the plane
-        down->set_translation(downTrans * scale);
-        down->set_rotation_degrees(downRot);
-		down->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", down);
-		// We baked a face, set render to true
-		render = true;
-    }
+		// 2
+		down->add_uv(Vector2(1, 0));
+		down->add_vertex(Vector3(.5, -.5, -.5) * scale + block->getCenter() / 2);
 
-	// If the left face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->left > 0 && !directionOpaque(block, Vector3(-1, 0, 0), scale)){
-		// Otherwise... Create a new mesh
-        CSGMesh* left = CSGMesh::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        left->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->left));
-		// Position the plane
-        left->set_translation(leftTrans * scale);
-        left->set_rotation_degrees(leftRot);
-		left->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", left);
-		// We baked a face, set render to true
-		render = true;
-    }
+		// 1
+		down->add_uv(Vector2(0, 0));
+		down->add_vertex(Vector3(-.5, -.5, -.5) * scale + block->getCenter() / 2);
 
-	// If the right face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->right > 0 && !directionOpaque(block, Vector3(1, 0, 0), scale)){
-		// Otherwise... Create a new mesh
-        CSGMesh* right = CSGMesh::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        right->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->right));
-		// Position the plane
-        right->set_translation(rightTrans * scale);
-        right->set_rotation_degrees(rightRot);
-		right->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", right);
-		// We baked a face, set render to true
-		render = true;
-    }
+		// 1
+		down->add_uv(Vector2(0, 0));
+		down->add_vertex(Vector3(-.5, -.5, -.5) * scale + block->getCenter() / 2);
 
-	// If the front face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->front > 0 && !directionOpaque(block, Vector3(0, 0, 1), scale)){
-		// Otherwise... Create a new mesh
-        CSGMesh* front = CSGMesh::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        front->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->front));
-		// Position the plane
-        front->set_translation(frontTrans * scale);
-        front->set_rotation_degrees(frontRot);
-		front->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", front);
-		// We baked a face, set render to true
-		render = true;
-    }
+		// 4
+		down->add_uv(Vector2(0, 1));
+		down->add_vertex(Vector3(-.5, -.5, .5) * scale + block->getCenter() / 2);
 
-	// If the back face's material is 0 or it is facing an opaque block don't render it
-    if(block->blockRef->back > 0 && !directionOpaque(block, Vector3(0, 0, -1), scale)){
-		// Otherwise... Create a new mesh
-        CSGMesh* back = CSGMesh::_new();
-		// Apply a copy of the plane storing the requested material from the MaterialList
-        back->call_deferred("set_mesh", MaterialList::getPlane(block->blockRef->back));
-		// Position the plane
-        back->set_translation(backTrans * scale);
-        back->set_rotation_degrees(backRot);
-		back->set_scale(expand(scale));
-		// Parent the plane to the cube merger
-        box->call_deferred("add_child", back);
-		// We baked a face, set render to true
-		render = true;
-    }
+		//3
+		down->add_uv(Vector2(1, 1));
+		down->add_vertex(Vector3(.5, -.5, .5) * scale + block->getCenter() / 2);
+	}
 
-	// Position the cube where it should be
-    box->set_translation(block->getCenter() / 2);
-	// Set whether or not the block is solid
-	box->set_use_collision(block->blockRef->solid);
-	// Return a pointer to the cube
-    return box;
-}
+	// If the left side of the block is not null, and is not facing an opaque block
+	if(block->blockRef->left && !directionOpaque(block, Vector3(1, 0, 0), scale)){
+		// Setup the SurfaceTool
+		initSide(left);
 
-/*
-NAME:          makeVoxelNode(Block* block, int scale = 1)
-DESCRIPTION:   Converts the provided <block> into a cube of the provided scale
-NOTES:			Switches between opaque and translucent code depending on blockRef
-*/
-inline Spatial* makeVoxelNode(Block* block, int scale = 1){
-	// If this voxel is opaque, generate mesh instances instead of CSG
-	if(block->blockRef->opaque)
-		return makeVoxelNodeOpaque(block, scale);
-	return makeVoxelNodeTranslucent(block, scale);
+		// Add the vertexes
+		// 1
+		left->add_uv(Vector2(0, 0));
+		left->add_vertex(Vector3(.5, -.5, -.5) * scale + block->getCenter() / 2);
+
+		// 2
+		left->add_uv(Vector2(1, 0));
+		left->add_vertex(Vector3(.5, -.5, .5) * scale + block->getCenter() / 2);
+
+		// 3
+		left->add_uv(Vector2(1, 1));
+		left->add_vertex(Vector3(.5, .5, .5) * scale + block->getCenter() / 2);
+
+		// 3
+		left->add_uv(Vector2(1, 1));
+		left->add_vertex(Vector3(.5, .5, .5) * scale + block->getCenter() / 2);
+
+		// 4
+		left->add_uv(Vector2(0, 1));
+		left->add_vertex(Vector3(.5, .5, -.5) * scale + block->getCenter() / 2);
+
+		// 1
+		left->add_uv(Vector2(0, 0));
+		left->add_vertex(Vector3(.5, -.5, -.5) * scale + block->getCenter() / 2);
+
+	}
+
+	// If the right side of the block is not null, and is not facing an opaque block
+	if(block->blockRef->right && !directionOpaque(block, Vector3(-1, 0, 0), scale)){
+		// Setup the SurfaceTool
+		initSide(right);
+
+		// Add the vertexes (inverse of left)
+		// 3
+		right->add_uv(Vector2(1, 1));
+		right->add_vertex(Vector3(-.5, .5, .5) * scale + block->getCenter() / 2);
+
+		// 2
+		right->add_uv(Vector2(1, 0));
+		right->add_vertex(Vector3(-.5, -.5, .5) * scale + block->getCenter() / 2);
+
+		// 1
+		right->add_uv(Vector2(0, 0));
+		right->add_vertex(Vector3(-.5, -.5, -.5) * scale + block->getCenter() / 2);
+
+		// 1
+		right->add_uv(Vector2(0, 0));
+		right->add_vertex(Vector3(-.5, -.5, -.5) * scale + block->getCenter() / 2);
+
+		// 4
+		right->add_uv(Vector2(0, 1));
+		right->add_vertex(Vector3(-.5, .5, -.5) * scale + block->getCenter() / 2);
+
+		// 3
+		right->add_uv(Vector2(1, 1));
+		right->add_vertex(Vector3(-.5, .5, .5) * scale + block->getCenter() / 2);
+	}
+
+	// If the front side of the block is not null, and is not facing an opaque block
+	if(block->blockRef->front && !directionOpaque(block, Vector3(0, 0, -1), scale)){
+		// Setup the SurfaceTool
+		initSide(front);
+
+		// Add the vertexes
+		// 1
+		front->add_uv(Vector2(0, 0));
+		front->add_vertex(Vector3(-.5, -.5, -.5) * scale + block->getCenter() / 2);
+
+		// 2
+		front->add_uv(Vector2(1, 0));
+		front->add_vertex(Vector3(.5, -.5, -.5) * scale + block->getCenter() / 2);
+
+		// 3
+		front->add_uv(Vector2(1, 1));
+		front->add_vertex(Vector3(.5, .5, -.5) * scale + block->getCenter() / 2);
+
+		// 3
+		front->add_uv(Vector2(1, 1));
+		front->add_vertex(Vector3(.5, .5, -.5) * scale + block->getCenter() / 2);
+
+		// 4
+		front->add_uv(Vector2(0, 1));
+		front->add_vertex(Vector3(-.5, .5, -.5) * scale + block->getCenter() / 2);
+
+		// 1
+		front->add_uv(Vector2(0, 0));
+		front->add_vertex(Vector3(-.5, -.5, -.5) * scale + block->getCenter() / 2);
+	}
+
+	// If the back side of the block is not null, and is not facing an opaque block
+	if(block->blockRef->back && !directionOpaque(block, Vector3(0, 0, 1), scale)){
+		// Setup the SurfaceTool
+		initSide(back);
+
+		// Add the vertexes (inverse of front)
+		// 3
+		back->add_uv(Vector2(1, 1));
+		back->add_vertex(Vector3(.5, .5, .5) * scale + block->getCenter() / 2);
+
+		// 2
+		back->add_uv(Vector2(1, 0));
+		back->add_vertex(Vector3(.5, -.5, .5) * scale + block->getCenter() / 2);
+
+		// 1
+		back->add_uv(Vector2(0, 0));
+		back->add_vertex(Vector3(-.5, -.5, .5) * scale + block->getCenter() / 2);
+
+		// 1
+		back->add_uv(Vector2(0, 0));
+		back->add_vertex(Vector3(-.5, -.5, .5) * scale + block->getCenter() / 2);
+
+		// 4
+		back->add_uv(Vector2(0, 1));
+		back->add_vertex(Vector3(-.5, .5, .5) * scale + block->getCenter() / 2);
+
+		// 3
+		back->add_uv(Vector2(1, 1));
+		back->add_vertex(Vector3(.5, .5, .5) * scale + block->getCenter() / 2);
+	}
+
+	// If this is the last block in chunk...
+	if(last){
+		// Create a mesh instance to be returned
+		MeshInstance* out = MeshInstance::_new();
+		// Variable which switches between overwriting the blank mesh and appending to the already existing mesh
+		bool first = true;
+		// For every surface in the chunk
+		for(auto cur: chunkSurfaces){
+			// Remove duplicate vertexes in the chunk
+			cur.second->index();
+			// Generate normals and tangents
+			cur.second->generate_normals();
+			cur.second->generate_tangents();
+			// If this is the first surface, set the generated mesh as the instance's mesh
+			if(first){
+				out->set_mesh(cur.second->commit());
+				first = false;
+			// Otherwise, append the generated mesh to the instance's mesh
+			} else
+				cur.second->commit(out->get_mesh());
+			// Delete the SurfaceTool
+			cur.second->free();
+		}
+		// Clear out the map of IDs and Tools
+		map<matID, SurfaceTool*>().swap(chunkSurfaces);
+
+		// Return the mesh instance with the surfaces added
+		return out;
+	}
+	// If this isn't the last block in the chunk, return nullptr
+	return nullptr;
 }
 
 /*
 NAME:          makeVoxelNode(Chunk* chunk, Vector3 center, matID up, matID down, matID left, matID right, matID front, matID back, int scale = 1)
-DESCRIPTION:   Converts the provided list of materials into a cube of the provided scale
+DESCRIPTION:   Converts the provided list of materials into a cube of the provided <scale>
 */
-Spatial* makeVoxelNode(Chunk* chunk, Vector3 center, matID up, matID down, matID left, matID right, matID front, matID back, int scale = 1){
+Spatial* makeVoxelNode(Chunk* chunk, Vector3 center, matID up, matID down, matID left, matID right, matID front, matID back, bool last = false, int scale = 1){
 	// Create a temporary blockRef to pass to the first function
 	BlockRef temp = BlockRef(0, up, down, left, right, front, back);
 	// If this subChunk isn't solid, don't generate collisions
@@ -380,7 +382,7 @@ Spatial* makeVoxelNode(Chunk* chunk, Vector3 center, matID up, matID down, matID
 	Block b = Block(chunk, center, &temp);
 
 	// Return the value from the other version of maxeVoxelNode
-    return makeVoxelNode(&b, scale);
+    return makeVoxelNode(&b, last, scale);
 }
 
 /*
@@ -404,29 +406,34 @@ void ChunkRenderer::bakeChunk(Chunk* chunk, int LoD){
 			chunk->curLoD = LoD;
 
 			// Create a new spatial for the chunk base to originate from
-			chunk->node = CSGCombiner::_new();
+			chunk->node = Spatial::_new();
 			//chunk->node->set_translation(chunk->getCenter());
 
+			int i = 1;
 			if(LoD < 4) { // lod != 4
 				for(SubChunk8& c8: chunk->subChunks) if(LoD < 3){ // lod != 3
 					    for(SubChunk4& c4: c8.subChunks) if(LoD < 2){ // lod != 2
 						        for(SubChunk2& c2: c4.subChunks) if(LoD < 1){ // lod != 1
-										for(Block& b: c2.blocks) // lod == 0
-											chunk->node->call_deferred("add_child", makeVoxelNode(&b) );
+										for(Block& b: c2.blocks){ // lod == 0
+											Spatial* node = makeVoxelNode(&b, i++ > BLOCKS_PER_CHUNK - 1);
+											if (node) chunk->node = node;
+										}
 									} else { // lod == 1
-										chunk->node->call_deferred("add_child", makeVoxelNode(chunk, c2.getCenter(), c2.up, c2.down, c2.left, c2.right, c2.front, c2.back, SubChunk2::SCALE) );
+										Spatial* node = makeVoxelNode(chunk, c2.getCenter(), c2.up, c2.down, c2.left, c2.right, c2.front, c2.back, i++ > BLOCKS_PER_CHUNK / 8 - 1, SubChunk2::SCALE);
+										if (node) chunk->node = node;
 									}
 							} else { // lod == 2
-								chunk->node->call_deferred("add_child", makeVoxelNode(chunk, c4.getCenter(), c4.up, c4.down, c4.left, c4.right, c4.front, c4.back, SubChunk4::SCALE) );
+								Spatial* node = makeVoxelNode(chunk, c4.getCenter(), c4.up, c4.down, c4.left, c4.right, c4.front, c4.back, i++ > BLOCKS_PER_CHUNK / (8 * 8) - 1, SubChunk4::SCALE);
+								if (node) chunk->node = node;
 							}
 					} else { // lod == 3
-						chunk->node->call_deferred("add_child", makeVoxelNode(chunk, c8.getCenter(), c8.up, c8.down, c8.left, c8.right, c8.front, c8.back, SubChunk8::SCALE) );
+						Spatial* node = makeVoxelNode(chunk, c8.getCenter(), c8.up, c8.down, c8.left, c8.right, c8.front, c8.back, i++ > BLOCKS_PER_CHUNK / (8 * 8 * 8) - 1, SubChunk8::SCALE);
+						if (node) chunk->node = node;
 					}
 			} else { // lod == 4
-				chunk->node->call_deferred("add_child", makeVoxelNode(chunk, chunk->getCenter(), chunk->up, chunk->down, chunk->left, chunk->right, chunk->front, chunk->back, Chunk::SCALE) );
+				Spatial* node = makeVoxelNode(chunk, chunk->getCenter(), chunk->up, chunk->down, chunk->left, chunk->right, chunk->front, chunk->back, i++ > BLOCKS_PER_CHUNK / (8 * 8 * 8 * 8) - 1, Chunk::SCALE);
+				if (node) chunk->node = node;
 			}
-
-
 
 			// Unlock the chunk
 			chunk->locked = false;
@@ -444,69 +451,7 @@ void ChunkRenderer::_enter_tree(){
     MaterialList::initMaterialList();
 
 	chunkMap = ChunkMap(4 * 1, Vector3());
-
-	//add_child(nullptr);
-
-	/*for(Chunk* cur: chunkMap.sphere){
-		thread(bakeChunk, cur, 0).detach();
-	}
-
-	int finished = 0;
-	while(finished < chunkMap.sphere.size()){
-		finished = 0;
-		for(Chunk* cur: chunkMap.sphere)
-			if(cur->node){
-				if(!cur->added){
-					call_deferred("add_child", cur->node);
-					cur->added = true;
-				}
-				finished++;
-			}
-		Godot::print("Finished! " + String::num(finished / chunkMap.sphere.size()));
-		this_thread::sleep_for(chrono::milliseconds(1000));
-	}
-
-	Godot::print("Building World Geometry");
-
-
-			//thread b0/*, b1, b2, b3*/;
-			/*if(i < chunkMap.sphere.size())
-				b0 = thread(bakeChunk, chunkMap.sphere[i], 0);
-			if(i + 1 < chunkMap.sphere.size())
-				b1 = thread(bakeChunk, chunkMap.sphere[i + 1], 0);
-			if(i + 2 < chunkMap.sphere.size())
-				b2 = thread(bakeChunk, chunkMap.sphere[i + 2], 0);
-			if(i + 3 < chunkMap.sphere.size())
-				b3 = thread(bakeChunk, chunkMap.sphere[i + 3], 0);*/
-
-			/*if(b0.joinable()) { b0.join(); add_child(chunkMap.sphere[i]->node); }
-			if(b1.joinable()) { b1.join(); add_child(chunkMap.sphere[i + 1]->node); }
-			if(b2.joinable()) { b2.join(); add_child(chunkMap.sphere[i + 2]->node); }
-			if(b3.joinable()) { b3.join(); add_child(chunkMap.sphere[i + 3]->node); }*/
-
-
-
-    /*Chunk* chunk = generateChunk(Vector3(0, 0, 0));
-	Chunk* chunk2 = generateChunk(Vector3(0, 0, 1));
-	Chunk* chunk3 = generateChunk(Vector3(0, 0, 2));
-	Chunk* chunk4 = generateChunk(Vector3(0, 0, 3));
-	Chunk* chunk5 = generateChunk(Vector3(0, 0, 4));
-	Chunk* chunk6 = generateChunk(Vector3(0, -1, 4));
-
-    thread bc0(bakeChunk, chunk, 0);
-	thread(bakeChunk, chunk2, 1).detach();
-	thread(bakeChunk, chunk3, 2).detach();
-	thread(bakeChunk, chunk4, 3).detach();
-	thread(bakeChunk, chunk5, 4).detach();
-	thread(bakeChunk, chunk6, 4).detach();
-
-	bc0.join();
-	add_child(chunk->node);
-	add_child(chunk2->node);
-	add_child(chunk3->node);
-	add_child(chunk4->node);
-	add_child(chunk5->node);
-	add_child(chunk6->node);*/
+	//chunkMap = ChunkMap(1, Vector3(), true);
 }
 
 void ChunkRenderer::_process(float delta){
@@ -517,18 +462,14 @@ void ChunkRenderer::_process(float delta){
 
 	if(i < chunkMap.sphere.size()){
 		thread t;
-		if(i < chunkMap.sphere.size()){
-			int LoD = (chunkMap.sphere[i]->getCenter() / 32).distance_squared_to(chunkMap.origin) / chunkMap.radius;
-			t = thread(bakeChunk, chunkMap.sphere[i], LoD);
 
-			if(label) label->set_text("Loading: " + String::num(((float) i / chunkMap.sphere.size()) * 100, 2) + "%");
-		}
+		int LoD = (chunkMap.sphere[i]->getCenter() / 32).distance_squared_to(chunkMap.origin) / chunkMap.radius;
+		t = thread(bakeChunk, chunkMap.sphere[i], LoD);
+		t.join(); add_child(chunkMap.sphere[i]->node, true);
 
-		t.join(); add_child(chunkMap.sphere[i]->node);
+		if(label) label->set_text("Loading: " + String::num(((float) i / chunkMap.sphere.size()) * 100, 1) + "%");
 		i++;
 	} else {
 		if(panel) panel->set_visible(false);
-
-
 	}
 }

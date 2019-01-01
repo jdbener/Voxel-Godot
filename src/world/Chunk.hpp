@@ -161,7 +161,7 @@ public:
     static const short SCALE = 16; // Scale (in World Scale) of this chunk
     SubChunk8 subChunks[SUB_PER_WHOLE]; // Array storing the tree of sub0chunks this chunk owns
 
-    CSGCombiner* node = nullptr;
+    Spatial* node = nullptr;
     short curLoD = -1;
     bool locked = false, added = false;
 

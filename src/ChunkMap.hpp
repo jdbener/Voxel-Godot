@@ -10,7 +10,7 @@ Joshua Dahl		   2018-12-17		  1.1 - Bug fixes on getSphere, exposed getInternalA
                                         code in getPoint to getPointIndex
 Joshua Dahl		   2018-12-19		  1.2 - Implemented getShereRim and getCubeRim, split the cube/sphere getters into two functions (one returning
                                         A vector and the other returning a Godot Array)
-Joshua Dahl		   2018-12-26		  1.3 - Degodotized file for integration with ChunkRenderer
+Joshua Dahl		   2018-12-26		  2.0 - Degodotized file for integration with ChunkRenderer
 */
 #ifndef CHUNKMAP_H
 #define CHUNKMAP_H
@@ -36,6 +36,7 @@ class ChunkMap {
 public:
 	int radius;	// Variable storing the radius of the sphere
 	Vector3 origin; // Variable storing the origin of the sphere (defaults to (0, 0, 0))
+	bool regen;
 	std::vector<Chunk*> sphere; // Array storing the elements which make up the sphere
 	std::map<short, std::map<short, int>> index; // Stores the number of elements at the end of each x/y location
 
@@ -54,7 +55,7 @@ public:
     std::vector<Chunk*> getSphere(int radius, Vector3 origin = Vector3(0, 0, 0));
     std::vector<Chunk*> getSphereRim(int radius, Vector3 origin = Vector3(0, 0, 0));
 
-    ChunkMap(int _radius = 0, Vector3 _origin = Vector3());
+    ChunkMap(int _radius = 0, Vector3 _origin = Vector3(), bool regen = false);
     ~ChunkMap();
 private:
 	void initSphere();

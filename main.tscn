@@ -52,6 +52,7 @@ align = 1
 valign = 1
 
 [node name="Camera" type="Camera" parent="."]
+transform = Transform( -4.47035e-08, 0, -1, 0, 1, 0, 1, 0, -4.47035e-08, -6.06609, 0, 0 )
 script = ExtResource( 2 )
 mouse_mode = 0
 privot = NodePath("../ChunkRenderer")

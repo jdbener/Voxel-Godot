@@ -19,7 +19,7 @@ Joshua Dahl		   2018-12-17		  1.1 - Bug fixes on getSphere, exposed getInternalA
                                         code in getPoint to getPointIndex
 Joshua Dahl		   2018-12-19		  1.2 - Implemented getShereRim and getCubeRim, split the cube/sphere getters into two functions (one returning
 										A vector and the other returning a Godot Array)
-Joshua Dahl		   2018-12-26		  1.3 - Degodotized file for integration with ChunkRenderer
+Joshua Dahl		   2018-12-26		  2.0 - Degodotized file for integration with ChunkRenderer
 */
 #include "ChunkGenerator.hpp"
 
@@ -32,7 +32,7 @@ FUNCTION:          CONSTRUCTOR()
 DESCRIPTION:       Creates the sphere (centered at <origin> of radius <radius>)
 					and indexes the elements
 */
-ChunkMap::ChunkMap(int _radius, Vector3 _origin) : radius(_radius), origin(_origin) {
+ChunkMap::ChunkMap(int _radius, Vector3 _origin, bool _regen) : radius(_radius), origin(_origin), regen(_regen) {
 	initSphere();
 	initIndex();
 }
@@ -79,7 +79,7 @@ void ChunkMap::reinitSphere(Vector3 translation){
 						tempSphere.push_back(chunk);
 					else
 						// Otherwise load the the chunk
-						tempSphere.push_back( generateChunk(search) );
+						tempSphere.push_back( generateChunk(search, regen) );
 				// If the point isn't in the sphere (and exists), free it's memory
 				} else if (chunk != nullptr)
 					delete chunk;
@@ -274,7 +274,7 @@ void ChunkMap::initSphere(){
 				// Ignore points not inside sphere
 				if ((radius * radius) >= temp.distance_squared_to(origin)){
 					// Add the current point to the output array
-					sphere.push_back( generateChunk(temp) );
+					sphere.push_back( generateChunk(temp, regen) );
 					// For every z we add to the array, increment our total
 					total++;
 				}

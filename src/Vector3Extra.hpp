@@ -39,12 +39,24 @@ static Vector3 integize(Vector3 in){
     return Vector3(int(in.x), int(in.y), int(in.z));
 }
 
+static Vector3 abs(Vector3 in){
+    return Vector3(abs(in.x), abs(in.y), abs(in.z));
+}
+
 static std::string to_string(Vector3 in){
     return "{" + std::to_string(in.x) + ", " + std::to_string(in.y) + ", " + std::to_string(in.z) + "}";
 }
 
 static std::string to_string(Vector3 in, bool integize){
     return "{" + std::to_string((int) in.x) + ", " + std::to_string((int) in.y) + ", " + std::to_string((int) in.z) + "}";
+}
+
+static Vector3 operator+(Vector3 vec, float f){
+        return Vector3(vec.x + f, vec.y + f, vec.z + f);
+}
+
+static Vector3 operator-(Vector3 vec, float f){
+        return vec + (-f);
 }
 
 static std::ostream& operator<<(std::ostream & stream, Vector3 vec){

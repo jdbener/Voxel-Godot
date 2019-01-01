@@ -51,7 +51,7 @@ struct Block: public Voxel {
     NAME:           setBlockRef(BlockRef* ref)
     DESCRIPTION:    Sets the block reference to the provided block reference
     */
-    void setBlockRef(BlockRef* ref){
+    void setBlockRefbyRef(BlockRef* ref){
         blockRef = ref;
     }
 
