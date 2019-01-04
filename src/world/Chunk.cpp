@@ -14,6 +14,7 @@ Joshua Dahl        2018-12-21         1.1 - Implemented functions/macros to run 
                                         available for debugging)
 Joshua Dahl        2018-12-24         1.2 - Implemented propagation of block state through the rest of the chunk
 Joshua Dahl        2018-12-25         1.3 - Added code to get the levels of subChunks
+Joshua Dahl		   2019-01-04		  1.4 - Added anyTransparent
 */
 
 #include "Chunk.hpp"

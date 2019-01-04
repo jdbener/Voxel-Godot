@@ -6,6 +6,7 @@ MODIFICATION HISTORY:
 Author             Date               Version
 ---------------    ----------         --------------
 Joshua Dahl		   2018-12-21		  0.0 - Initial testing version
+Joshua Dahl		   2019-01-04		  0.1 - Removed the plane component
 */
 
 #ifndef MATERIAL_LIST_H
@@ -22,7 +23,7 @@ using namespace godot;
 
 struct _MaterialList {
     // Variable storing a list of planes
-    std::vector<PlaneMesh*> planes;
+    std::vector<Ref<Material>> materials;
 };
 
 namespace MaterialList {
@@ -33,14 +34,8 @@ namespace MaterialList {
     DESCRIPTION:    Adds a plane with the provided material applied to it the the list of planes
     */
     static void addMaterial(Ref<Material> mat){
-        // Create a new plane
-        PlaneMesh* plane = PlaneMesh::_new();
-        // Set it's size to 1x1
-        plane->set_size(Vector2(1, 1));
-        // Apply the material
-        plane->set_material(mat);
         // Add it to the array
-        materials.planes.push_back(plane);
+        materials.materials.push_back(mat);
     }
 
     /* ----------------------------------------------------------------------------
@@ -62,21 +57,8 @@ namespace MaterialList {
     DESCRIPTION:    Gets the material stored on the plane stored at index ID
     */
     static Ref<Material> getMaterial(matID ID){
-        if(materials.planes.size() < ID) return materials.planes[0]->get_material();
-        return materials.planes[ID]->get_material();
-    }
-
-    /*
-    NAME:           getPlane(matID ID)
-    DESCRIPTION:    Gets the plane stored at index ID
-    */
-    static Ref<Mesh> getPlane(matID ID){
-        Ref<Mesh> ref;
-
-        if(materials.planes.size() < ID) ref = Ref<Mesh>(materials.planes[0]);
-        ref = Ref<Mesh>(materials.planes[ID]);
-
-        return ref;
+        if(materials.materials.size() < ID) return materials.materials[0];
+        return materials.materials[ID];
     }
 
 }

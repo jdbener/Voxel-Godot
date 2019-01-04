@@ -14,12 +14,13 @@ Joshua Dahl        2018-12-19         1.0 - Godotized file
 Joshua Dahl        2018-12-21         1.1 - Simplified BlockList system (ID is now stored in the blockRef) and added visibility to BlockRef
 Joshua Dahl        2018-12-24         1.2 - Replaced visibility with opacity
 Joshua Dahl        2018-12-24         1.2 - Replaced the map with a vector
+Joshua Dahl        2019-01-04         1.3 - Removd cpp file and made header only
 */
 
 #ifndef BLOCKLIST_H
 #define BLOCKLIST_H
 
-#include "./GlobalDefs.hpp"
+#include "../GlobalDefs.hpp"
 
 #include <cereal/types/vector.hpp>
 #include <vector>
@@ -40,8 +41,27 @@ struct BlockRef {
         unsigned short f = 0, unsigned short b = 0, bool _solid = true, bool _opaque = true)
         : ID(_ID), up(u), down(d), left(l), right(r), front(f), back(b), solid(_solid), opaque(_opaque) { }
 
-    bool operator==(BlockRef other);
-    bool operator!=(BlockRef other);
+    /*
+    NAME:           ==(BlockRef other)
+    DESCRIPTION:    Checks if the provided BlockRef is the same as this one
+    */
+    bool operator==(BlockRef other){
+        if(up != other.up) return false;
+        if(down != other.down) return false;
+        if(left != other.left) return false;
+        if(right != other.right) return false;
+        if(front != other.front) return false;
+        if(back != other.back) return false;
+        return true;
+    }
+
+    /*
+    NAME:           !=(BlockRef other)
+    DESCRIPTION:    Checks if the provided BlockRef is not the same as this one
+    */
+    bool operator!=(BlockRef other){
+        return !(*this == other);
+    }
 };
 
 struct _BlocksManager {

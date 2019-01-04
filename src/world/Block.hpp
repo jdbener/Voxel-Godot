@@ -11,12 +11,13 @@ Joshua Dahl		   2018-12-18		  0.1 - Moved BlockRef and the BlockList to BlockLis
 Joshua Dahl		   2018-12-19		  0.2 - Split code off into Block.cpp
 Joshua Dahl        2018-12-19         1.0 - Godotized file
 Joshua Dahl        2018-12-21         1.1 - Refactored to support the new changes to BlockRefs
+Joshua Dahl        2019-01-04         1.2 - Removed cpp file and made header only
 */
 
 #ifndef BLOCK_H
 #define BLOCK_H
 
-#include "../BlockList.hpp"
+#include "../types/BlockList.hpp"
 #include "Voxel.hpp"
 
 #include <cereal/access.hpp>
@@ -34,10 +35,19 @@ struct Block: public Voxel {
     Block(Chunk* _chunk, Vector3 _center, BlockRef* _block = BlockList::null) : Voxel(_center), blockRef(_block) { chunk = _chunk; }
     Block(Chunk* _chunk, BlockRef* _block = BlockList::null) : Voxel(), blockRef(_block) { chunk = _chunk; }
 
-    bool operator==(BlockRef other);
-    bool operator==(BlockRef* other);
-    bool operator!=(BlockRef other);
-    bool operator!=(BlockRef* other);
+    // Comparison operators
+    bool operator==(BlockRef other){
+        return *blockRef == other;
+    }
+    bool operator==(BlockRef* other){
+        return blockRef == other;
+    }
+    bool operator!=(BlockRef other){
+        return *blockRef != other;
+    }
+    bool operator!=(BlockRef* other){
+        return blockRef != other;
+    }
 
     /*
     NAME:           getCenter()
