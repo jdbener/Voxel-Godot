@@ -43,7 +43,8 @@ public:
     // Material IDS
     unsigned short up, down, left, right, front, back;
 
-    bool opaque = false; // Variable storing whether or not this chunk is solid
+    bool opaque = false, // Variable storing whether or not this chunk is solid
+        anyTransparent = true; // Variable storing whether or not this chunk contains any non-opaque blocks
 
     ChunkBase(Vector3 center) : Voxel(center) { }
     ChunkBase() { }
@@ -63,7 +64,7 @@ public:
         ar ( cereal::make_nvp("MatID-up", up), cereal::make_nvp("MatID-down", down),
              cereal::make_nvp("MatID-left", left), cereal::make_nvp("MatID-right", right),
              cereal::make_nvp("MatID-front", front), cereal::make_nvp("MatID-back", back),
-             cereal::make_nvp("Opaque", opaque) );
+             cereal::make_nvp("Opaque", opaque), cereal::make_nvp("anyTransparent", anyTransparent) );
     }
 };
 
@@ -179,10 +180,10 @@ public:
     void setOpacity(short solidBlocks);
     Vector3 getCenter(bool worldScale = false);
 
-    Block* getBlock(Vector3 search);
-    SubChunk2* getSubChunk2(Vector3 search);
-    SubChunk4* getSubChunk4(Vector3 search);
-    SubChunk8* getSubChunk8(Vector3 search);
+    Block* getBlock(Vector3 search, bool fuzzy = false);
+    SubChunk2* getSubChunk2(Vector3 search, bool fuzzy = false);
+    SubChunk4* getSubChunk4(Vector3 search, bool fuzzy = false);
+    SubChunk8* getSubChunk8(Vector3 search, bool fuzzy = false);
 
     int runOnBlocks(void (*func)(Block& curBlock, int& result, int index));
     int runOnBlocks(void (*func)(Block& curBlock, int& result));

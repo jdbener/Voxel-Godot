@@ -21,6 +21,7 @@ Joshua Dahl		   2018-12-26		  2.0 - Degodotized file for integration with ChunkR
 #include <Array.hpp>
 
 #include "world/Chunk.hpp"
+#include "world/Block.hpp"
 
 #include <map>
 #include <vector>
@@ -45,10 +46,17 @@ public:
 
 	void reinitSphere(Vector3 translation);
 
-	inline int getIndex(int x, int y);
+	int getIndex(int x, int y);
     int getChunkIndex(Vector3 search);
-	inline Chunk* getChunk(Vector3 search);
-    inline Vector3 getChunkCenter(Vector3 search, bool worldSpace = false);
+	Chunk* getChunk(Vector3 search);
+    Vector3 getChunkCenter(Vector3 search, bool worldSpace = false);
+
+	static Vector3 block2chunk(Vector3 in);
+
+	Block* getBlock(Vector3 search, bool fuzzy = false);
+	SubChunk2* getSubChunk2(Vector3 search, bool fuzzy = false);
+	SubChunk4* getSubChunk4(Vector3 search, bool fuzzy = false);
+	SubChunk8* getSubChunk8(Vector3 search, bool fuzzy = false);
 
     std::vector<Chunk*> getCube(int radius, Vector3 origin = Vector3(0, 0, 0));
     std::vector<Chunk*> getCubeRim(int radius, Vector3 origin = Vector3(0, 0, 0));

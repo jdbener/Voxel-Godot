@@ -26,6 +26,7 @@ Joshua Dahl        2018-12-25         1.3 - Added code to get the levels of subC
 #include <string>
 #include <map>
 #include <algorithm>
+#include <exception>
 
 #include <cereal/archives/portable_binary.hpp>
 #include <cereal/archives/json.hpp>
@@ -60,17 +61,17 @@ NAME:           getBlockIndex(Vector3 search, Vector3 center, short scale)
 DESCRIPTION:    Gets the index of a block, this is a helper function for getBlock
                 which is used to calculate which index of the subChunk array to access
 */
-int getBlockIndex(Vector3 search, Vector3 center, short scale){
+int getBlockIndex(Vector3 search, Vector3 center, short scale, bool fuzzy){
     // Variable storing the search location normalized to (-15, -15, -15) <= searchCenter <= (15, 15, 15)
     Vector3 searchCenter = search - center;
-    // If the index is really in the normalized range
-    if(searchCenter > expand(-scale) && searchCenter < expand(scale)){
+    // If the index is really in the normalized range (or we are doing fuzzy matching)
+    if((searchCenter > expand(-scale) && searchCenter < expand(scale)) || fuzzy) {
         // Pick the index based on x, y, z values
         if(searchCenter.x > 0){ // 0, 3, 4, 7
             if(searchCenter.y > 0) { // 0, 3
                 if(searchCenter.z > 0){ // 0
                     return 0;
-                } else { // 3, int&
+                } else { // 3
                     return 3;
                 }
             } else { // 4, 7
@@ -104,9 +105,9 @@ int getBlockIndex(Vector3 search, Vector3 center, short scale){
 NAME:           getSubChunk8(Vector3 search)
 DESCRIPTION:    Gets a SubChunk8 out of the chunk
 */
-SubChunk8* Chunk::getSubChunk8(Vector3 search){
+SubChunk8* Chunk::getSubChunk8(Vector3 search, bool fuzzy){
     // Get the index for every element in the array
-    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE);
+    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE, fuzzy);
     if(c8 < 0 || c8 > 7) return nullptr;
     // Ensure the indexes are all correct
     return &subChunks[c8];
@@ -116,11 +117,13 @@ SubChunk8* Chunk::getSubChunk8(Vector3 search){
 NAME:           getSubChunk4(Vector3 search)
 DESCRIPTION:    Gets a SubChunk4 out of the chunk
 */
-SubChunk4* Chunk::getSubChunk4(Vector3 search){
+SubChunk4* Chunk::getSubChunk4(Vector3 search, bool fuzzy){
+    if( fuzzyEquals(search, Vector3(-76, -52, -76)) )
+        return nullptr;
     // Get the index for every element in the array
-    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE);
+    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE, fuzzy);
     if(c8 < 0 || c8 > 7) return nullptr;
-    int c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE);
+    int c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE, fuzzy);
     if(c4 < 0 || c4 > 7) return nullptr;
     // Ensure the indexes are all correct
     return &subChunks[c8].subChunks[c4];
@@ -130,13 +133,13 @@ SubChunk4* Chunk::getSubChunk4(Vector3 search){
 NAME:           getSubChunk2(Vector3 search)
 DESCRIPTION:    Gets a SubChunk2 out of the chunk
 */
-SubChunk2* Chunk::getSubChunk2(Vector3 search){
+SubChunk2* Chunk::getSubChunk2(Vector3 search, bool fuzzy){
     // Get the index for every element in the array
-    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE);
+    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE, fuzzy);
     if(c8 < 0 || c8 > 7) return nullptr;
-    int c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE);
+    int c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE, fuzzy);
     if(c4 < 0 || c4 > 7) return nullptr;
-    int c2 = getBlockIndex(search, subChunks[c8].subChunks[c4].getCenter(), SubChunk4::SCALE);
+    int c2 = getBlockIndex(search, subChunks[c8].subChunks[c4].getCenter(), SubChunk4::SCALE, fuzzy);
     if(c2 < 0 || c2 > 7) return nullptr;
     // Ensure the indexes are all correct
     return &subChunks[c8].subChunks[c4].subChunks[c2];
@@ -146,16 +149,20 @@ SubChunk2* Chunk::getSubChunk2(Vector3 search){
 NAME:           getBlock(Vector3 search)
 DESCRIPTION:    Gets a block out of the chunk
 */
-Block* Chunk::getBlock(Vector3 search){
+Block* Chunk::getBlock(Vector3 search, bool fuzzy){
     // Get the index for every element in the array
-    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE);
+    int c8 = getBlockIndex(search, getCenter(), Chunk::SCALE, fuzzy);
     if(c8 < 0 || c8 > 7) return nullptr;
-    int c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE);
+    //Godot::print("c8");
+    int c4 = getBlockIndex(search, subChunks[c8].getCenter(), SubChunk8::SCALE, fuzzy);
     if(c4 < 0 || c4 > 7) return nullptr;
-    int c2 = getBlockIndex(search, subChunks[c8].subChunks[c4].getCenter(), SubChunk4::SCALE);
+    //Godot::print("c4");
+    int c2 = getBlockIndex(search, subChunks[c8].subChunks[c4].getCenter(), SubChunk4::SCALE, fuzzy);
     if(c2 < 0 || c2 > 7) return nullptr;
-    int block = getBlockIndex(search, subChunks[c8].subChunks[c4].subChunks[c2].getCenter(), SubChunk2::SCALE);
+    //Godot::print("c2");
+    int block = getBlockIndex(search, subChunks[c8].subChunks[c4].subChunks[c2].getCenter(), SubChunk2::SCALE, fuzzy);
     if(block < 0 || block > 7) return nullptr;
+    //Godot::print("block");
     // Ensure the indexes are all correct
     return &subChunks[c8].subChunks[c4].subChunks[c2].blocks[block];
 }
@@ -232,6 +239,12 @@ bool mode(bool array[]){
     return false;
 }
 
+bool areAnyTransparent(bool array[]){
+    for(int i = 0; i < 8; i++)
+        if(!array[i]) return true;
+    return false;
+}
+
 /*
 NAME:           updateSubChunks()
 DESCRIPTION:    Updates matIDs and opacity of the chunk/subchunk
@@ -279,6 +292,7 @@ void Chunk::updateSubChunks(){
                 c2.left = mode(c2left); c2.right = mode(c2right);
                 c2.front = mode(c2front); c2.back = mode(c2back);
                 c2.opaque = mode(c2opaque);
+                c2.anyTransparent = areAnyTransparent(c2opaque);
 
                 c4up[c4I] = c2.up; c4down[c4I] = c2.down;
                 c4left[c4I] = c2.left; c4right[c4I] = c2.right;
@@ -291,6 +305,7 @@ void Chunk::updateSubChunks(){
             c4.left = mode(c4left); c4.right = mode(c4right);
             c4.front = mode(c4front); c4.back = mode(c4back);
             c4.opaque = mode(c4opaque);
+            c4.anyTransparent = areAnyTransparent(c4opaque);
 
             c8up[c8I] = c4.up; c8down[c8I] = c4.down;
             c8left[c8I] = c4.left; c8right[c8I] = c4.right;
@@ -303,6 +318,7 @@ void Chunk::updateSubChunks(){
         c8.left = mode(c8left); c8.right = mode(c8right);
         c8.front = mode(c8front); c8.back = mode(c8back);
         c8.opaque = mode(c8opaque);
+        c8.anyTransparent = areAnyTransparent(c8opaque);
 
         cup[i] = c8.up; cdown[i] = c8.down;
         cleft[i] = c8.left; cright[i] = c8.right;
@@ -316,6 +332,7 @@ void Chunk::updateSubChunks(){
     left = mode(cleft); right = mode(cright);
     front = mode(cfront); back = mode(cback);
     opaque = mode(copaque);
+    anyTransparent = areAnyTransparent(copaque);
 }
 
 /*

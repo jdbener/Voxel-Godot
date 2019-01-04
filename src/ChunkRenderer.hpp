@@ -29,7 +29,7 @@ public:
     void _init() {}
 	static void _register_methods();
 
-    static void bakeChunk(Chunk* chunk, int LoD = 0);
+    static void bakeChunk(ChunkMap* cMap, Chunk* chunk, int LoD = 0);
 
     void _enter_tree();
     void _process(float delta);

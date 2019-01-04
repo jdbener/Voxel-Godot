@@ -95,7 +95,7 @@ FUNCTION:          getIndex(int x, int y)
 DESCRIPTION:       Gets the number of elements which appear in the array before the given x, y point
 RETURNS: 		   The element count
 */
-inline int ChunkMap::getIndex(int x, int y){
+int ChunkMap::getIndex(int x, int y){
 	// If the point is in the index, return the count
 	if(index.find(x) != index.end())
 		if(index[x].find(y) != index[x].end())
@@ -121,7 +121,7 @@ int ChunkMap::getChunkIndex(Vector3 search){
 	// Return NULL if the search is out of array bounds
 	if(min < 0) return NULL_INDEX;
 	// Return NULL if the search is out of slice bounds
-	if(int(-(search.z - origin.z)) < -range || int(search.z - origin.z) > range) return NULL_INDEX;
+	if(int(-(search.z - origin.z)) <= -range || int(search.z - origin.z) >= range) return NULL_INDEX;
 	// Since we know the index is in the array, get it
 	return max - (int(search.z - origin.z) + range);
 }
@@ -131,7 +131,7 @@ FUNCTION:          getChunk(const Vector3& search)
 DESCRIPTION:       Gets a element stored at the provided search point
 RETURNS: 		   The element
 */
-inline Chunk* ChunkMap::getChunk(Vector3 search){
+Chunk* ChunkMap::getChunk(Vector3 search){
 	// Get the index from the array
 	int index = getChunkIndex(search);
 	// If the index value is in the array return the point stored there
@@ -141,9 +141,12 @@ inline Chunk* ChunkMap::getChunk(Vector3 search){
 	return nullptr;
 }
 
-
-
-inline Vector3 ChunkMap::getChunkCenter(Vector3 search, bool worldSpace){
+/*
+FUNCTION:          getChunkCenter(const Vector3& search)
+DESCRIPTION:       Gets the center of the chunk stored at the provided search point
+RETURNS: 		   The the Chunk's center if it exists or NULL_VECTOR otherwise
+*/
+Vector3 ChunkMap::getChunkCenter(Vector3 search, bool worldSpace){
 	Chunk* chunk = getChunk(search);
 	if(chunk != nullptr)
 		if(worldSpace){
@@ -153,6 +156,72 @@ inline Vector3 ChunkMap::getChunkCenter(Vector3 search, bool worldSpace){
 		}
 	// Otherwise, return null
 	return NULL_VECTOR;
+}
+
+/*
+FUNCTION:          block2chunk(Vector3 in)
+DESCRIPTION:       Converts a search from the [-15, 15] + k block space to the 0 + k chunk space
+RETURNS: 		   The new search in chunk space
+*/
+Vector3 ChunkMap::block2chunk(Vector3 in){
+	//[-15, 15) = 0
+    //[15, 45) = 1
+    //[45, 75) = 2
+    //[75, 105) = 3
+    //[105, 135) = 4
+	in = Vector3( (in.x < 0 ? in.x + 1 : in.x -1),
+			(in.y < 0 ? in.y + 1 : in.y -1),
+			(in.z < 0 ? in.z + 1 : in.z -1) );
+	return integize( Vector3((in.x - 15) / 30 + (in.x > 0 ? 1 : 0),
+                (in.y - 15) / 30 + (in.y > 0 ? 1 : 0),
+                (in.z - 15) / 30 + (in.z > 0 ? 1 : 0)) );
+}
+
+/*
+FUNCTION:          getBlock(Vector3 search)
+DESCRIPTION:       Extracts a block from the chunkMap
+*/
+Block* ChunkMap::getBlock(Vector3 search, bool fuzzy){
+	Vector3 cSearch = block2chunk(search);
+	Chunk* chunk = getChunk(cSearch);
+	/*if(chunk == nullptr)
+		Godotize::print(to_string(search) + " = " + to_string(cSearch));*/
+	if(chunk)
+		return chunk->getBlock(search, fuzzy);
+	return nullptr;
+}
+
+/*
+FUNCTION:          getSubChunk2(Vector3 search)
+DESCRIPTION:       Extracts a SubChunk2 from the chunkMap
+*/
+SubChunk2* ChunkMap::getSubChunk2(Vector3 search, bool fuzzy){
+	Chunk* chunk = getChunk(block2chunk(search));
+	if(chunk)
+		return chunk->getSubChunk2(search, fuzzy);
+	return nullptr;
+}
+
+/*
+FUNCTION:          getSubChunk4(Vector3 search)
+DESCRIPTION:       Extracts a SubChunk4 from the chunkMap
+*/
+SubChunk4* ChunkMap::getSubChunk4(Vector3 search, bool fuzzy){
+	Chunk* chunk = getChunk(block2chunk(search));
+	if(chunk)
+		return chunk->getSubChunk4(search, fuzzy);
+	return nullptr;
+}
+
+/*
+FUNCTION:          getSubChunk8(Vector3 search)
+DESCRIPTION:       Extracts a SubChunk8 from the chunkMap
+*/
+SubChunk8* ChunkMap::getSubChunk8(Vector3 search, bool fuzzy){
+	Chunk* chunk = getChunk(block2chunk(search));
+	if(chunk)
+		return chunk->getSubChunk8(search, fuzzy);
+	return nullptr;
 }
 
 /*

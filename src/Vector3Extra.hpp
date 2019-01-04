@@ -27,7 +27,7 @@ static bool operator> (Vector3 a, Vector3 b){
 NAME:           expand(float what)
 DESCRIPTION:    Expands the provided float into a Vector3
 */
-static Vector3 expand(float what){
+static inline Vector3 expand(float what){
     return Vector3(what, what, what);
 }
 
@@ -35,11 +35,11 @@ static Vector3 expand(float what){
 NAME:           integize(Vector3 in)
 DESCRIPTION:    Drops the decimal information from the provided array
 */
-static Vector3 integize(Vector3 in){
+static inline Vector3 integize(Vector3 in){
     return Vector3(int(in.x), int(in.y), int(in.z));
 }
 
-static Vector3 abs(Vector3 in){
+static inline Vector3 abs(Vector3 in){
     return Vector3(abs(in.x), abs(in.y), abs(in.z));
 }
 
@@ -52,11 +52,31 @@ static std::string to_string(Vector3 in, bool integize){
 }
 
 static Vector3 operator+(Vector3 vec, float f){
-        return Vector3(vec.x + f, vec.y + f, vec.z + f);
+    return Vector3(vec.x + f, vec.y + f, vec.z + f);
 }
 
 static Vector3 operator-(Vector3 vec, float f){
-        return vec + (-f);
+    return vec + (-f);
+}
+
+static bool fuzzyEquals(Vector3 a, Vector3 b){
+    if(a.x < b.x - 1 || a.x > b.x + 1) return false;
+    if(a.y < b.y - 1 || a.y > b.y + 1) return false;
+    if(a.z < b.z - 1 || a.z > b.z + 1) return false;
+    return true;
+}
+
+static bool anyGreater(Vector3 vec, float s){
+	if(vec.x > s) return true;
+	if(vec.y > s) return true;
+	if(vec.z > s) return true;
+	return false;
+}
+
+inline float extractDirection(Vector3 in, Vector3 dir){
+	if(dir.x > 0 || dir.x < 0) return in.x;
+	if(dir.y > 0 || dir.y < 0) return in.y;
+	if(dir.z > 0 || dir.z < 0) return in.z;
 }
 
 static std::ostream& operator<<(std::ostream & stream, Vector3 vec){

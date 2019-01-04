@@ -69,47 +69,107 @@ void ChunkRenderer::_register_methods() {
     //register_method("generateChunk", &ChunkRenderer::generateChunk);
 }
 
+inline Vector3 dir2origin(Vector3 in, Vector3 origin = Vector3()){
+    Vector3 test = abs(in);
+
+    if(test.x > test.y && test.x > test.z) return Vector3((in.x > 0 ? -1 : 1), 0, 0);
+    if(test.y > test.x && test.y > test.z) return Vector3(0, (in.y > 0 ? -1 : 1), 0);
+    if(test.z > test.y && test.z > test.x) return Vector3(0, 0, (in.z > 0 ? -1 : 1));
+	return Vector3();
+}
+
 /*
-NAME:          directionOpaque(Block* in, Vector3 direction, int scale = 1)
+NAME:      directionOpaque(Block* in, Vector3 direction, int scale = 1)
 Returns:   Returns true if the block in <direction> in relation to this block (<in>) is opaque
 */
-bool directionOpaque(Block* in, Vector3 direction, int scale = 1){
+bool directionOpaque(ChunkMap* cMap, Block* in, Vector3 direction, int scale = 1){
 	if(scale == 1){
-		/*
-			TODO: load block/subChunk from chunkmap instead of chunk
-			this should theoretically stop internal chunk faces from rendering
-		*/
-		Block* block = in->chunk->getBlock(in->getCenter() + direction * 2);
-		// If the block exists...
-		if(block)
+		//return true;
+		// Get the center and a reference to the block in said direction
+		Block* block = cMap->getBlock(in->getCenter() + direction * 2, true);
+
+		// If that block exists...
+		if(block){
 			// And is opaque...
 			if(block->blockRef->opaque)
-				// Return true
+				// Hide the face
 				return true;
+		/*
+		TODO: Check the math of getting blocks from chunks one more time...
+		*/
+		// If that block doesn't exist...
+		} else
+			// Hide the face
+			return true;
 	} else if (scale == SubChunk2::SCALE) {
-		SubChunk2* chunk = in->chunk->getSubChunk2(in->getCenter() + direction * 2 * scale);
+		SubChunk2* chunk = cMap->getSubChunk2(in->getCenter() + direction * 2 * scale, true);
 		// If the subChunk exists...
-		if(chunk)
+		if(chunk){
+			// If this is the face facing the origin of the world...
+			/*if(dir2origin(in->chunk->getCenter(), cMap->origin) == direction){
+				// Variable storing where in the chunk we are (relative to the axis facing the origin)
+				float distance2originEdge = extractDirection(in->getCenter() - in->chunk->getCenter(), direction);
+				// If this subchunk is on the edge of the chunk facing the origin of the world...
+				if(((extractDirection(direction, direction) < 0 && distance2originEdge < -13) ||
+					(extractDirection(direction, direction) > 0 && distance2originEdge > 13)) &&
+					// And the chunk next to this one has any transparent blocks
+					chunk->chunk->anyTransparent)
+						// Draw the face
+						return false;
+			}*/
 			// And is opaque...
-			if(chunk->opaque)
-				// Return true
+			if(!chunk->anyTransparent)
+				// Hide the face
 				return true;
+		} else
+			// Don't render faces at the edge of the world
+			return true;
 	} else if (scale == SubChunk4::SCALE) {
-		SubChunk4* chunk = in->chunk->getSubChunk4(in->getCenter() + direction * 2 * scale);
+		SubChunk4* chunk = cMap->getSubChunk4(in->getCenter() + direction * 2 * scale, true);
 		// If the subChunk exists...
-		if(chunk)
+		if(chunk){
+			// If this is the face facing the origin of the world...
+			/*if(dir2origin(in->chunk->getCenter(), cMap->origin) == direction){
+				// Variable storing where in the chunk we are (relative to the axis facing the origin)
+				float distance2originEdge = extractDirection(in->getCenter() - in->chunk->getCenter(), direction);
+				// If this subchunk is on the edge of the chunk facing the origin of the world...
+				if(((extractDirection(direction, direction) < 0 && distance2originEdge < -13) ||
+					(extractDirection(direction, direction) > 0 && distance2originEdge > 13)) &&
+					// And the chunk next to this one has any transparent blocks
+					chunk->chunk->anyTransparent)
+						// Draw the face
+						return false;
+			}*/
 			// And is opaque...
-			if(chunk->opaque)
-				// Return true
+			if(!chunk->anyTransparent)
+				// Hide the face
 				return true;
+		} else
+			// Don't render faces at the edge of the world
+			return true;
 	} else if (scale == SubChunk8::SCALE) {
-		SubChunk8* chunk = in->chunk->getSubChunk8(in->getCenter() + direction * 2 * scale);
+		SubChunk8* chunk = cMap->getSubChunk8(in->getCenter() + direction * 2 * scale, true);
 		// If the subChunk exists...
-		if(chunk)
+		if(chunk){
+			// If this is the face facing the origin of the world...
+			/*if(dir2origin(in->chunk->getCenter(), cMap->origin) == direction){
+				// Variable storing where in the chunk we are (relative to the axis facing the origin)
+				float distance2originEdge = extractDirection(in->getCenter() - in->chunk->getCenter(), direction);
+				// If this subchunk is on the edge of the chunk facing the origin of the world...
+				if(((extractDirection(direction, direction) < 0 && distance2originEdge < -13) ||
+					(extractDirection(direction, direction) > 0 && distance2originEdge > 13)) &&
+					// And the chunk next to this one has any transparent blocks
+					chunk->chunk->anyTransparent)
+						// Draw the face
+						return false;
+			}*/
 			// And is opaque...
-			if(chunk->opaque)
-				// Return true
+			if(!chunk->anyTransparent)
+				// Hide the face
 				return true;
+		} else
+			// Don't render faces at the edge of the world
+			return true;
 	}
 	return false;
 }
@@ -120,7 +180,7 @@ DESCRIPTION:	Converts the provided <block> into a cube of the provided <scale>
 RETURNS:		Nullptr if this is not the <last> call, otherwise it returns a pointer
 				to a MeshInstance containing the generated Mesh
 */
-Spatial* makeVoxelNode(Block* block, bool last = false, int scale = 1){
+Spatial* makeVoxelNode(ChunkMap* cMap, Block* block, bool last = false, int scale = 1){
 	/*
 	MACRO:			initSide(side)
 	DESCRIPTION:	A macro which adds a <matID, SurfaceTool> pair to chunkSurfaces map.
@@ -144,7 +204,7 @@ Spatial* makeVoxelNode(Block* block, bool last = false, int scale = 1){
 	static map<matID, SurfaceTool*> chunkSurfaces;
 
 	// If the top of the block is not null, and is not facing an opaque block
-	if(block->blockRef->up && !directionOpaque(block, Vector3(0, 1, 0), scale)){
+	if(block->blockRef->up && !directionOpaque(cMap, block, Vector3(0, 1, 0), scale)){
 		// Setup the SurfaceTool
 		initSide(up);
 
@@ -175,7 +235,7 @@ Spatial* makeVoxelNode(Block* block, bool last = false, int scale = 1){
 	}
 
 	// If the bottom of the block is not null, and is not facing an opaque block
-	if(block->blockRef->down && !directionOpaque(block, Vector3(0, -1, 0), scale)){
+	if(block->blockRef->down && !directionOpaque(cMap, block, Vector3(0, -1, 0), scale)){
 		// Setup the SurfaceTool
 		initSide(down);
 
@@ -206,7 +266,7 @@ Spatial* makeVoxelNode(Block* block, bool last = false, int scale = 1){
 	}
 
 	// If the left side of the block is not null, and is not facing an opaque block
-	if(block->blockRef->left && !directionOpaque(block, Vector3(1, 0, 0), scale)){
+	if(block->blockRef->left && !directionOpaque(cMap, block, Vector3(1, 0, 0), scale)){
 		// Setup the SurfaceTool
 		initSide(left);
 
@@ -238,7 +298,7 @@ Spatial* makeVoxelNode(Block* block, bool last = false, int scale = 1){
 	}
 
 	// If the right side of the block is not null, and is not facing an opaque block
-	if(block->blockRef->right && !directionOpaque(block, Vector3(-1, 0, 0), scale)){
+	if(block->blockRef->right && !directionOpaque(cMap, block, Vector3(-1, 0, 0), scale)){
 		// Setup the SurfaceTool
 		initSide(right);
 
@@ -269,7 +329,7 @@ Spatial* makeVoxelNode(Block* block, bool last = false, int scale = 1){
 	}
 
 	// If the front side of the block is not null, and is not facing an opaque block
-	if(block->blockRef->front && !directionOpaque(block, Vector3(0, 0, -1), scale)){
+	if(block->blockRef->front && !directionOpaque(cMap, block, Vector3(0, 0, -1), scale)){
 		// Setup the SurfaceTool
 		initSide(front);
 
@@ -300,7 +360,7 @@ Spatial* makeVoxelNode(Block* block, bool last = false, int scale = 1){
 	}
 
 	// If the back side of the block is not null, and is not facing an opaque block
-	if(block->blockRef->back && !directionOpaque(block, Vector3(0, 0, 1), scale)){
+	if(block->blockRef->back && !directionOpaque(cMap, block, Vector3(0, 0, 1), scale)){
 		// Setup the SurfaceTool
 		initSide(back);
 
@@ -367,7 +427,7 @@ Spatial* makeVoxelNode(Block* block, bool last = false, int scale = 1){
 NAME:          makeVoxelNode(Chunk* chunk, Vector3 center, matID up, matID down, matID left, matID right, matID front, matID back, int scale = 1)
 DESCRIPTION:   Converts the provided list of materials into a cube of the provided <scale>
 */
-Spatial* makeVoxelNode(Chunk* chunk, Vector3 center, matID up, matID down, matID left, matID right, matID front, matID back, bool last = false, int scale = 1){
+Spatial* makeVoxelNode(ChunkMap* cMap, Chunk* chunk, Vector3 center, matID up, matID down, matID left, matID right, matID front, matID back, bool last = false, int scale = 1){
 	// Create a temporary blockRef to pass to the first function
 	BlockRef temp = BlockRef(0, up, down, left, right, front, back);
 	// If this subChunk isn't solid, don't generate collisions
@@ -382,14 +442,14 @@ Spatial* makeVoxelNode(Chunk* chunk, Vector3 center, matID up, matID down, matID
 	Block b = Block(chunk, center, &temp);
 
 	// Return the value from the other version of maxeVoxelNode
-    return makeVoxelNode(&b, last, scale);
+    return makeVoxelNode(cMap, &b, last, scale);
 }
 
 /*
 NAME: 			bakeChunk(Chunk* chunk, int LoD)
 DESCRIPTION: 	Creates the node tree for the provided <chunk> at the request level of detail <LoD>
 */
-void ChunkRenderer::bakeChunk(Chunk* chunk, int LoD){
+void ChunkRenderer::bakeChunk(ChunkMap* cMap, Chunk* chunk, int LoD){
 	// If the chunk isn't locked
 	if(!chunk->locked)
 		// Only rebake the chunk if it's level of detail has changed
@@ -415,23 +475,23 @@ void ChunkRenderer::bakeChunk(Chunk* chunk, int LoD){
 					    for(SubChunk4& c4: c8.subChunks) if(LoD < 2){ // lod != 2
 						        for(SubChunk2& c2: c4.subChunks) if(LoD < 1){ // lod != 1
 										for(Block& b: c2.blocks){ // lod == 0
-											Spatial* node = makeVoxelNode(&b, i++ > BLOCKS_PER_CHUNK - 1);
+											Spatial* node = makeVoxelNode(cMap, &b, i++ > BLOCKS_PER_CHUNK - 1);
 											if (node) chunk->node = node;
 										}
 									} else { // lod == 1
-										Spatial* node = makeVoxelNode(chunk, c2.getCenter(), c2.up, c2.down, c2.left, c2.right, c2.front, c2.back, i++ > BLOCKS_PER_CHUNK / 8 - 1, SubChunk2::SCALE);
+										Spatial* node = makeVoxelNode(cMap, chunk, c2.getCenter(), c2.up, c2.down, c2.left, c2.right, c2.front, c2.back, i++ > BLOCKS_PER_CHUNK / 8 - 1, SubChunk2::SCALE);
 										if (node) chunk->node = node;
 									}
 							} else { // lod == 2
-								Spatial* node = makeVoxelNode(chunk, c4.getCenter(), c4.up, c4.down, c4.left, c4.right, c4.front, c4.back, i++ > BLOCKS_PER_CHUNK / (8 * 8) - 1, SubChunk4::SCALE);
+								Spatial* node = makeVoxelNode(cMap, chunk, c4.getCenter(), c4.up, c4.down, c4.left, c4.right, c4.front, c4.back, i++ > BLOCKS_PER_CHUNK / (8 * 8) - 1, SubChunk4::SCALE);
 								if (node) chunk->node = node;
 							}
 					} else { // lod == 3
-						Spatial* node = makeVoxelNode(chunk, c8.getCenter(), c8.up, c8.down, c8.left, c8.right, c8.front, c8.back, i++ > BLOCKS_PER_CHUNK / (8 * 8 * 8) - 1, SubChunk8::SCALE);
+						Spatial* node = makeVoxelNode(cMap, chunk, c8.getCenter(), c8.up, c8.down, c8.left, c8.right, c8.front, c8.back, i++ > BLOCKS_PER_CHUNK / (8 * 8 * 8) - 1, SubChunk8::SCALE);
 						if (node) chunk->node = node;
 					}
 			} else { // lod == 4
-				Spatial* node = makeVoxelNode(chunk, chunk->getCenter(), chunk->up, chunk->down, chunk->left, chunk->right, chunk->front, chunk->back, i++ > BLOCKS_PER_CHUNK / (8 * 8 * 8 * 8) - 1, Chunk::SCALE);
+				Spatial* node = makeVoxelNode(cMap, chunk, chunk->getCenter(), chunk->up, chunk->down, chunk->left, chunk->right, chunk->front, chunk->back, i++ > BLOCKS_PER_CHUNK / (8 * 8 * 8 * 8) - 1, Chunk::SCALE);
 				if (node) chunk->node = node;
 			}
 
@@ -450,8 +510,10 @@ void ChunkRenderer::_enter_tree(){
 	*/
     MaterialList::initMaterialList();
 
-	chunkMap = ChunkMap(4 * 1, Vector3());
-	//chunkMap = ChunkMap(1, Vector3(), true);
+	//chunkMap = ChunkMap(4 * 1, Vector3());
+	chunkMap = ChunkMap(4, Vector3(), false);
+
+	Godot::print(String::num(chunkMap.index[0].size()));
 }
 
 void ChunkRenderer::_process(float delta){
@@ -464,12 +526,29 @@ void ChunkRenderer::_process(float delta){
 		thread t;
 
 		int LoD = (chunkMap.sphere[i]->getCenter() / 32).distance_squared_to(chunkMap.origin) / chunkMap.radius;
-		t = thread(bakeChunk, chunkMap.sphere[i], LoD);
+		t = thread(bakeChunk, &chunkMap, chunkMap.sphere[i], LoD);
 		t.join(); add_child(chunkMap.sphere[i]->node, true);
 
 		if(label) label->set_text("Loading: " + String::num(((float) i / chunkMap.sphere.size()) * 100, 1) + "%");
 		i++;
 	} else {
-		if(panel) panel->set_visible(false);
+		static bool first = true;
+		if(first){
+			first = false;
+
+			if(panel) panel->set_visible(false);
+
+
+			Block* b = chunkMap.getBlock(Vector3(-17, 15, 13));
+			if(b)
+				Godotize::print("Block Exists");
+
+			/*
+			TODO: solitary edge chunks appear to not to be in chunk map?
+			*/
+			Chunk* c = chunkMap.getChunk(Vector3(-1, 0, 0));
+			if(c)
+				Godot::print("Chunk Exists");
+		}
 	}
 }
