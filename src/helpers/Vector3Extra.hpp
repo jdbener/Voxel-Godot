@@ -8,6 +8,8 @@ Author             Date               Version
 Joshua Dahl		   2018-12-21		  1.0 - Implemented >, single float constructing, and <<
 Joshua Dahl		   2018-12-24		  1.1 - Implemented integize
 Joshua Dahl		   2018-12-25		  1.2 - Implemented to_string
+Joshua Dahl		   2019-01-08		  1.3 - Implemented fuzzyEquals, anyGreater,
+                                        extractDirection, abs, + scaler, - scaler
 */
 
 #ifndef VECTOR3_E_H

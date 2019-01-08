@@ -20,7 +20,7 @@ Joshua Dahl		   2019-01-04		  1.4 - Added anyTransparent
 #define CHUNK_H
 
 #include "Block.hpp"
-#include "../Vector3Extra.hpp"
+#include "../helpers/Vector3Extra.hpp"
 
 #include <CSGCombiner.hpp>
 #include <Vector3.hpp>

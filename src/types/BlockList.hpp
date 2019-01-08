@@ -1,6 +1,6 @@
 /*
 FILE:               BlockList.hpp
-DESCRIPTION:
+DESCRIPTION:        Provides a list of blocks
 
 MODIFICATION HISTORY:
 Author             Date               Version
@@ -14,54 +14,18 @@ Joshua Dahl        2018-12-19         1.0 - Godotized file
 Joshua Dahl        2018-12-21         1.1 - Simplified BlockList system (ID is now stored in the blockRef) and added visibility to BlockRef
 Joshua Dahl        2018-12-24         1.2 - Replaced visibility with opacity
 Joshua Dahl        2018-12-24         1.2 - Replaced the map with a vector
-Joshua Dahl        2019-01-04         1.3 - Removd cpp file and made header only
+Joshua Dahl        2019-01-04         1.3 - Removd cpp file and made header only and split BlockRef into it's own file
 */
 
 #ifndef BLOCKLIST_H
 #define BLOCKLIST_H
 
-#include "../GlobalDefs.hpp"
+#include "blocks/BlockRef.hpp"
 
-#include <cereal/types/vector.hpp>
 #include <vector>
 
-struct BlockRef {
-    // The refID this block represents
-    refID ID;
-    // Material IDS
-    unsigned short up, down, left, right, front, back;
-    bool solid, // Whether or not the block is collideable
-        /*
-            Replaced visibility with opacity, since any face with matID 0 will never be rendered
-        */
-        opaque; // Whether or not the block is opaque (can its edges be combined with other edges?)
-
-
-    BlockRef(refID _ID = 0, unsigned short u = 0, unsigned short d = 0, unsigned short l = 0, unsigned short r = 0,
-        unsigned short f = 0, unsigned short b = 0, bool _solid = true, bool _opaque = true)
-        : ID(_ID), up(u), down(d), left(l), right(r), front(f), back(b), solid(_solid), opaque(_opaque) { }
-
-    /*
-    NAME:           ==(BlockRef other)
-    DESCRIPTION:    Checks if the provided BlockRef is the same as this one
-    */
-    bool operator==(BlockRef other){
-        if(up != other.up) return false;
-        if(down != other.down) return false;
-        if(left != other.left) return false;
-        if(right != other.right) return false;
-        if(front != other.front) return false;
-        if(back != other.back) return false;
-        return true;
-    }
-
-    /*
-    NAME:           !=(BlockRef other)
-    DESCRIPTION:    Checks if the provided BlockRef is not the same as this one
-    */
-    bool operator!=(BlockRef other){
-        return !(*this == other);
-    }
+enum Blocks {
+    stone = 2, dirt = 3, grass = 4
 };
 
 struct _BlocksManager {
@@ -78,6 +42,8 @@ struct _BlocksManager {
         blocks.push_back(BlockRef(blockID, 0, 0, 0, 0, 0, 0, false, false)); blockID++; // 0, null
         blocks.push_back(BlockRef(blockID, 1, 2, 1, 1, 1, 1, true,  false)); blockID++; // 1, debug
         blocks.push_back(BlockRef(blockID, 2, 2, 2, 2, 2, 2, true,  true));  blockID++; // 2, stone
+        blocks.push_back(BlockRef(blockID, 3, 3, 3, 3, 3, 3, true,  true));  blockID++; // 3, dirt
+        blocks.push_back(BlockRef(blockID, 4, 3, 3, 3, 3, 3, true,  true));  blockID++; // 4, grass
     }
 
     BlockRef* operator[](refID ID){
@@ -105,9 +71,8 @@ namespace BlockList {
     NAME:           addBlock(BlockRef ref)
     DESCRIPTION:    Function to for an external source to add a block to the manager
     */
-    static refID addBlock(BlockRef ref){
+    static void addBlock(BlockRef ref){
         blocks.blocks.push_back(ref);
-        return blocks.blockID++;
     }
 };
 

@@ -54,6 +54,10 @@ static inline godot::String godotize(const char* in){
     return godotize(std::string(in));
 }
 
+/*
+NAME:           Godotize::print(std::string text)
+DESCRIPTION:    Prints the provided string to Godot's console
+*/
 namespace Godotize {
     static inline void print(std::string text){
         Godot::print(godotize(text));

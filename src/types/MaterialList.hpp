@@ -1,6 +1,6 @@
 /*
-FILE:              Renderer.hpp
-DESCRIPTION:       Class which provides a means for interfacing Chunks with Godot
+FILE:              MaterialList.hpp
+DESCRIPTION:       Provides a list of the surface materials blocks use
 
 MODIFICATION HISTORY:
 Author             Date               Version
@@ -14,20 +14,14 @@ Joshua Dahl		   2019-01-04		  0.1 - Removed the plane component
 
 #include <ResourceLoader.hpp>
 #include <Material.hpp>
-#include <PlaneMesh.hpp>
 #include <Reference.hpp>
 
 #include <vector>
 
 using namespace godot;
 
-struct _MaterialList {
-    // Variable storing a list of planes
-    std::vector<Ref<Material>> materials;
-};
-
 namespace MaterialList {
-    static _MaterialList materials;
+    static std::vector<Ref<Material>> materials;
 
     /*
     NAME:           addMaterial(Ref<Material> mat)
@@ -35,7 +29,7 @@ namespace MaterialList {
     */
     static void addMaterial(Ref<Material> mat){
         // Add it to the array
-        materials.materials.push_back(mat);
+        materials.push_back(mat);
     }
 
     /* ----------------------------------------------------------------------------
@@ -47,6 +41,8 @@ namespace MaterialList {
             MaterialList::addMaterial(ResourceLoader::get_singleton()->load("res://materials/null.tres")); //0, null
             MaterialList::addMaterial(ResourceLoader::get_singleton()->load("res://materials/TansparentTest.tres")); //1, debug
             MaterialList::addMaterial(ResourceLoader::get_singleton()->load("res://materials/stone.tres")); //2, stone
+            MaterialList::addMaterial(ResourceLoader::get_singleton()->load("res://materials/dirt.tres")); //3, dirt
+            MaterialList::addMaterial(ResourceLoader::get_singleton()->load("res://materials/grass.tres")); //4, grass
 
             first = false;
         }
@@ -57,10 +53,9 @@ namespace MaterialList {
     DESCRIPTION:    Gets the material stored on the plane stored at index ID
     */
     static Ref<Material> getMaterial(matID ID){
-        if(materials.materials.size() < ID) return materials.materials[0];
-        return materials.materials[ID];
+        if(materials.size() < ID) return materials[0];
+        return materials[ID];
     }
-
 }
 
 #endif

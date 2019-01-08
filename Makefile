@@ -5,8 +5,8 @@ STRICT=-z defs
 
 LIBRARIES = lib/SimplexNoise/build/SimplexNoise
 
-OBJ32 = src/init.32 src/ChunkMap.32 src/world/Chunk.32 src/ChunkRenderer.32
-OBJ64 = src/init.64 src/ChunkMap.64 src/world/Chunk.64 src/ChunkRenderer.64
+OBJ32 = src/init.32 src/ChunkMap.32 src/world/Chunk.32 src/ChunkGenerator.32 src/ChunkRenderer.32
+OBJ64 = src/init.64 src/ChunkMap.64 src/world/Chunk.64 src/ChunkGenerator.64 src/ChunkRenderer.64
 
 %.32: %.cpp
 	$(CC32) -c -o $@ $< -std=c++14 -pthread

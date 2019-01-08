@@ -24,7 +24,8 @@ Joshua Dahl		   2018-12-26		  2.0 - Degodotized file for integration with ChunkR
 #include "ChunkGenerator.hpp"
 
 #include "ChunkMap.hpp"
-#include "Godotize.hpp"
+#include "helpers/Godotize.hpp"
+
 #include <algorithm>
 
 /*

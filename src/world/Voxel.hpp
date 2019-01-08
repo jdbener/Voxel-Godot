@@ -14,6 +14,8 @@ Joshua Dahl		   2018-12-14		  1.0 - Godotized file
 
 #include <Vector3.hpp>
 
+#include <cereal/archives/portable_binary.hpp>
+
 using namespace godot;
 
 /*

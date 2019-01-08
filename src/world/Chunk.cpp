@@ -18,8 +18,7 @@ Joshua Dahl		   2019-01-04		  1.4 - Added anyTransparent
 */
 
 #include "Chunk.hpp"
-#include "../Vector3Extra.hpp"
-#include "../Godotize.hpp"
+#include "../helpers/Godotize.hpp"
 
 #include <String.hpp>
 
@@ -29,7 +28,6 @@ Joshua Dahl		   2019-01-04		  1.4 - Added anyTransparent
 #include <algorithm>
 #include <exception>
 
-#include <cereal/archives/portable_binary.hpp>
 #include <cereal/archives/json.hpp>
 
 #include <iostream>
