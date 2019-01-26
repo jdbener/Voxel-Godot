@@ -31,20 +31,24 @@ const short BLOCKS_PER_CHUNK = 16 * 16 * 16;
 
 // Constant storing the lowest block of the world (based on accuracy of a float)
 const int BOTTOM_OF_WORLD = -9999999;
+// Constant storing the base see level of the world
+const int SEE_LEVEL = 0;
 
-// Constants storing the offset/scale multiplier for transition block noise
+// Constants storing the octaves/offset/scale for transition block noise
+const int TRANSITION_OCTAVES = 5;
 const int TRANSITION_OFFSET = 31241;
-const float TRANSITION_MULTIPLIER = .1;
-// Constants storing the offset/scale multiplier for temperature noise
+const float TRANSITION_SCALE = 20;
+// Constants storing the octaves/offset/scale for temperature noise
+const int TEMPERATURE_OCTAVES = 5;
 const int TEMPERATURE_OFFSET = 15616;
-const float TEMPERATURE_MULTIPLIER = 10;
-// Constants storing the offset/scale multiplier for humidity noise
+const float TEMPERATURE_SCALE = 200;
+// Constants storing the octaves/offset/scale for humidity noise
+const int HUMIDITY_OCTAVES = 5;
 const int HUMIDITY_OFFSET = 41896;
-const float HUMIDITY_MULTIPLIER = 20;
-// Constants storing the offset/scale multiplier for magicalness noise
+const float HUMIDITY_SCALE = 400;
+// Constants storing the octaves/offset/scale for magicalness noise
+const int MAGICALNESS_OCTAVES = 2;
 const int MAGICALNESS_OFFSET = 96531;
-const float MAGICALNESS_MULTIPLIER = 10;
-
-
+const float MAGICALNESS_SCALE = 200;
 
 #endif

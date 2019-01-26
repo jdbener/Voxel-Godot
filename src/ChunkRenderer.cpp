@@ -489,7 +489,7 @@ void ChunkRenderer::_enter_tree(){
     MaterialList::initMaterialList();
 
 	//chunkMap = ChunkMap(4 * 1, Vector3());
-	chunkMap = ChunkMap(4, Vector3(), false);
+	chunkMap = ChunkMap(4, Vector3(), true);
 
 	Godot::print(String::num(chunkMap.index[0].size()));
 }

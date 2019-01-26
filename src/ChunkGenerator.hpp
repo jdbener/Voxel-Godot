@@ -16,7 +16,6 @@ Joshua Dahl		   2010-01-08		  0.1 - Split code into cpp file
 
 #include "helpers/Godotize.hpp"
 
-void setSolidityTest (Block& b);
 Chunk* generateChunk(Vector3 center, bool forceRegenerate = false, bool worldSpace = true);
 
 #endif

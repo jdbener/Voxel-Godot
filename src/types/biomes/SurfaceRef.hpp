@@ -46,9 +46,9 @@ struct SurfaceRef: public BiomeRef {
     float magicalness = 20;         // Latent magic in the area (Percentage)
 
     // What block is on the surface
-    std::vector<BlockChance> surfaceBlocks;         // Block ID
-    int minLevel = -10;             // Minimum height of top level of chunk
-    int maxLevel = 20;              // Maximum height of top block of chunk
+    std::vector<BlockChance> surfaceBlocks;     // Block ID
+    int minLevel = 0;//BOTTOM_OF_WORLD;             // Minimum height of top level of chunk
+    int maxLevel = 10; //-BOTTOM_OF_WORLD;            // Maximum height of top block of chunk
 
     // What block is below the surface block and how deep does it go
     std::vector<BlockChance> transitionBlocks;      // Block ID
@@ -65,6 +65,8 @@ struct SurfaceRef: public BiomeRef {
     */
     void setSurfaceBlocks(std::initializer_list<BlockChance> list){
         surfaceBlocks = list;
+        for(int i = 0; i < surfaceBlocks.size(); i++)
+            surfaceBlocks[i].chance += surfaceBlocks[i - 1].chance;
     }
 
     /*
@@ -89,6 +91,8 @@ struct SurfaceRef: public BiomeRef {
     */
     void setTransitionBlock(refID block){
         transitionBlocks = { BlockChance(block, 0) };
+        for(int i = 0; i < surfaceBlocks.size(); i++)
+            surfaceBlocks[i].chance += surfaceBlocks[i - 1].chance;
     }
 
     /*
@@ -97,6 +101,19 @@ struct SurfaceRef: public BiomeRef {
     */
     SurfaceVector getSurfaceVector(){
         return SurfaceVector(temperature, humidity, magicalness, ID);
+    }
+
+    float getSurfaceLevel(float x, float z, int seed){
+        return SEE_LEVEL + minLevel + (generator->fractal(8, x / noiseScale + seed, z / noiseScale + seed) + 1) / 2 * (maxLevel - minLevel);
+    }
+
+    float getTransitionLevel(float x, float z, float surfaceLevel, int seed){
+        return surfaceLevel - transitionMinDepth - (generator->fractal(TRANSITION_OCTAVES, x / TRANSITION_SCALE + seed + TRANSITION_OFFSET,
+            z / TRANSITION_SCALE + seed + TRANSITION_OFFSET) + 1) / 2 * (transitionMaxDepth - transitionMinDepth);
+    }
+
+    inline float getTransitionLevel(float x, float z, int seed){
+        return getTransitionLevel(x, z, getSurfaceLevel(x, z, seed), seed);
     }
 };
 
