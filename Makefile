@@ -1,33 +1,17 @@
-CC32=g++ -m32 -g -O3 -std=c++14 -pthread -Igodot-cpp/include -Igodot-cpp/include/core -Igodot-cpp/include/gen -Igodot-cpp/godot_headers -Ilib
 CC64=g++ -fPIC -g -O3 -std=c++14 -pthread -Igodot-cpp/include -Igodot-cpp/include/core -Igodot-cpp/include/gen -Igodot-cpp/godot_headers -Ilib
 
-STRICT=-z defs
+LIBRARIES =
 
-LIBRARIES = lib/SimplexNoise/build/SimplexNoise
+OBJ = src/gdlink.o src/SurfaceOptimization.o src/SurfFaceEdges.o
 
-OBJ32 = src/init.32 src/ChunkMap.32 src/world/Chunk.32 src/ChunkGenerator.32 src/ChunkRenderer.32
-OBJ64 = src/init.64 src/ChunkMap.64 src/world/Chunk.64 src/ChunkGenerator.64 src/ChunkRenderer.64
-
-%.32: %.cpp
-	$(CC32) -c -o $@ $< -std=c++14 -pthread
-
-%.64: %.cpp
+%.o: %.cpp
 	$(CC64) -c -o $@ $< -std=c++14 -pthread
 
-build64:  $(OBJ64)
-	g++ -fPIC -pthread -o bin/GameCode.so -shared $^ godot-cpp/bin/libgodot-cpp.linux.debug.64.a $(LIBRARIES) $(STRICT)
-
-build32: $(OBJ32)
-	g++ -fPIC -m32 -pthread -o bin/GameCode.32.so -shared $^ godot-cpp/bin/libgodot-cpp.linux.debug.32.a $(LIBRARIES) $(STRICT)
-
-build: build64 build32
-	echo "Done!"
+build:  $(OBJ)
+	g++ -fPIC -g -pthread -o bin/GameCode.so -std=c++14 -shared $^ godot-cpp/bin/libgodot-cpp.linux.debug.64.a
 
 clean:
-	rm $(OBJ32) $(OBJ64) bin/GameCode.so bin/GameCode.32.so
-
-clean-chunks:
-	rm worlds/Test/*
+	rm $(OBJ)
 
 run:
-	echo "Built Successfully"
+	echo "Built sucessfully"

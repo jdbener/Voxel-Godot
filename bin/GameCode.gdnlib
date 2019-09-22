@@ -8,9 +8,9 @@ reloadable=true
 [entry]
 
 X11.64="res://bin/GameCode.so"
-X11.32="res://bin/GameCode.32.so"
 
 [dependencies]
 
-X11.64=[  ]
-X11.32=[  ]
+X11.64=[]
+Windows.64=[]
+OSX.64=[]

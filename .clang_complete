@@ -1,5 +1,5 @@
- -std=c++14
- -I../godot-cpp/include
- -I../godot-cpp/include/core
- -I../godot-cpp/include/gen
- -I../godot-cpp/godot_headers
+-std=c++14 
+-Igodot-cpp/include
+-Igodot-cpp/include/core
+-Igodot-cpp/include/gen
+-Igodot-cpp/godot_headers
