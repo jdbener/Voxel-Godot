@@ -2,7 +2,7 @@ CC64=g++ -fPIC -g -O3 -std=c++14 -pthread -Igodot-cpp/include -Igodot-cpp/includ
 
 LIBRARIES =
 
-OBJ = src/gdlink.o src/SurfaceOptimization.o src/SurfFaceEdges.o
+OBJ = src/gdlink.o src/SurfaceOptimization.o src/SurfFaceEdge.o
 
 %.o: %.cpp
 	$(CC64) -c -o $@ $< -std=c++14 -pthread

@@ -9,22 +9,17 @@
 
 // Add ranged based for loop support to PoolVector3Array and PoolIntArray
 namespace godot{
-	inline auto begin(godot::PoolVector3Array& what){
-		return what.write().ptr();
+	#define RANGED_BASED_FOR(x) inline auto begin(godot::x& what){\
+		return what.write().ptr();\
+	}\
+	inline auto end(godot::x& what){\
+		return &what.write()[what.size()];\
 	}
 
-	inline auto end(godot::PoolVector3Array& what){
-		return &what.write()[what.size()];
-	}
-
-// TODO: fix range based for loops to support PoolIntArrays
-	inline auto begin(godot::PoolIntArray& what){
-		return what.write().ptr();
-	}
-
-	inline auto end(godot::PoolIntArray& what){
-		return &what.write()[what.size()];
-	}
+	RANGED_BASED_FOR(PoolVector3Array)
+	RANGED_BASED_FOR(PoolVector2Array)
+	RANGED_BASED_FOR(PoolColorArray)
+	RANGED_BASED_FOR(PoolIntArray)
 };
 
 using namespace godot;
@@ -32,12 +27,37 @@ using namespace godot;
 class Face;
 class Edge;
 
+struct Vertex {
+	Vector3 point;
+	Vector2 uv;
+	Color color;
+
+	Vertex(Vector3 p = Vector3(0, 0, 0), Vector2 u = Vector2(-1, -1), Color c = Color(-1, -1, -1, -1))
+		: point(p), uv(u), color(c) {}
+
+	operator Vector3(){
+		return point;
+	}
+
+	operator Vector2(){
+		return uv;
+	}
+
+	operator Color(){
+		return color;
+	}
+};
+
 class Surface{
 public:
 	// Positions
 	PoolVector3Array verts;
   	// Normals
 	PoolVector3Array norms;
+	// UVs
+	PoolVector2Array uvs;
+	// Color
+	PoolColorArray colors;
 	// Indecies
 	PoolIntArray indecies;
 
@@ -54,6 +74,10 @@ public:
 			verts.push_back(vert);
 		for (Vector3& normal: other.norms)
 			norms.push_back(normal);
+		for (Vector2& uv: other.uvs)
+			uvs.push_back(uv);
+		for (Color& color: other.colors)
+			colors.push_back(color);
 		for (int index: other.indecies)
 			indecies.push_back(index + maxIndex);
 	}
@@ -69,7 +93,7 @@ public:
 	Face::Type type;
 
 	// Vertecies
-	Vector3 a, b, c, d;
+	Vertex a, b, c, d;
 	// Surface Normal
 	Vector3 normal;
 
@@ -80,18 +104,35 @@ public:
 	// Constructs a surface from this face
 	Surface getSurface();
 
-	Face(Vector3 _a, Vector3 _b, Vector3 _c) : a(_a), b(_b), c(_c){
+	Face(Vertex _a, Vertex _b, Vertex _c) : a(_a), b(_b), c(_c){
 		type = Face::Type::TRIANGLE;
 		calculateNormal();
 	}
 
-	Face(Vector3 _a, Vector3 _b, Vector3 _c, Vector3 _d) : a(_a), b(_b), c(_c), d(_d){
+	Face(Vector3 _a, Vector3 _b, Vector3 _c) {
+		type = Face::Type::TRIANGLE;
+		a = Vertex(_a);
+		b = Vertex(_b);
+		c = Vertex(_c);
+		calculateNormal();
+	}
+
+	Face(Vertex _a, Vertex _b, Vertex _c, Vertex _d) : a(_a), b(_b), c(_c), d(_d){
 		type = Face::Type::QUAD;
 		calculateNormal();
 	}
 
+	Face(Vector3 _a, Vector3 _b, Vector3 _c, Vector3 _d) {
+		type = Face::Type::QUAD;
+		a = Vertex(_a);
+		b = Vertex(_b);
+		c = Vertex(_c);
+		d = Vertex(_d);
+		calculateNormal();
+	}
+
 	void calculateNormal(){
-		normal = (c - a).cross(b - a).normalized();
+		normal = (c.point - a.point).cross(b.point - a.point).normalized();
 	}
 
 	bool checkContiguiousCoplanar(Face&& other){
@@ -117,11 +158,16 @@ public:
 class Edge{
 public:
 	// Points representing the start and end of the edge
-	Vector3 tail, tip;
+	Vertex tail, tip;
 
 	Edge(Vector3& _a, Vector3& _b){
-		tail = _a;
-		tip = _b;
+		tail.point = _a;
+		tip.point = _b;
+	}
+
+	Edge(Vertex& a, Vertex& b){
+		tail = a;
+		tip = b;
 	}
 
 	// Function which returns a node containing a visualization of the edge
@@ -129,21 +175,21 @@ public:
 
 	// Creates a direction vector centered at the origin parralel to this edge
 	Vector3 direction(){
-		return tip - tail;
+		return tip.point - tail.point;
 	}
 
 	// Checks if a point lies on this edge
 	bool onEdge(const Vector3& p){
-		if (tail.x <= std::max(p.x, tip.x) && tail.x >= std::min(p.x, tip.x) &&
-		tail.y <= std::max(p.y, tip.y) && tail.y >= std::min(p.y, tip.y) &&
-		tail.z <= std::max(p.z, tip.z) && tail.z >= std::min(p.z, tip.z))
+		if (tail.point.x <= std::max(p.x, tip.point.x) && tail.point.x >= std::min(p.x, tip.point.x) &&
+		tail.point.y <= std::max(p.y, tip.point.y) && tail.point.y >= std::min(p.y, tip.point.y) &&
+		tail.point.z <= std::max(p.z, tip.point.z) && tail.point.z >= std::min(p.z, tip.point.z))
 			return true;
 		return false;
 	}
 
 	// Checks if two Edges are equal
 	bool operator==(const Edge& other) const {
-		if ((tail == other.tail && tip == other.tip) || (tail == other.tip && tip == other.tail))
+		if ((tail.point == other.tail.point && tip.point == other.tip.point) || (tail.point == other.tip.point && tip.point == other.tail.point))
 			return true;
 		return false;
 	}
@@ -154,7 +200,7 @@ public:
 
 	// Function used to check if two edges share a point
 	bool sharePoint(const Edge& other) const {
-		if (tail == other.tail || tail == other.tip || tip == other.tail || tip == other.tip)
+		if (tail.point == other.tail.point || tail.point == other.tip.point || tip.point == other.tail.point || tip.point == other.tip.point)
 			return true;
 		return false;
 	}

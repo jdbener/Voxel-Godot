@@ -19,6 +19,10 @@ ArrayMesh* Surface::getMesh(ArrayMesh* mesh /* = nullptr*/){
     arrays[Mesh::ArrayType::ARRAY_VERTEX] = verts;
     if (norms.size() > 0)
         arrays[Mesh::ArrayType::ARRAY_NORMAL] = norms;
+    if (uvs.size() > 0)
+        arrays[Mesh::ArrayType::ARRAY_TEX_UV] = uvs;
+    if (colors.size() > 0)
+        arrays[Mesh::ArrayType::ARRAY_COLOR] = colors;
     if (indecies.size() > 0)
         arrays[Mesh::ArrayType::ARRAY_INDEX] = indecies;
 
@@ -83,7 +87,7 @@ Surface Surface::fromContiguousCoplanarFaces(std::vector<Face> faces){
 
     // Flatten all of the vertecies in 3D space and drop their normal facing component
     // This is required since the built in triangulation algorithm only works in 2D space
-    Basis transform = Basis(faces[0].b - faces[0].a, faces[0].normal, faces[0].c - faces[0].a);
+    Basis transform = Basis(faces[0].b.point - faces[0].a.point, faces[0].normal, faces[0].c.point - faces[0].a.point);
     PoolVector2Array triangulationPoints;
     for (Vector3 p: surf.verts){
         p = transform.xform_inv(p);

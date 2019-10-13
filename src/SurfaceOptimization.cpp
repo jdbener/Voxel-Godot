@@ -3,10 +3,12 @@
 #include "Geometry.hpp"
 #include "SurfaceTool.hpp"
 
-#include "timer.h"
+#include "gstream/Gstream.hpp"
+#include <iomanip>
 
 #include <vector>
-#include <iostream>
+
+#include "timer.h"
 
 void SurfaceOptimization::_ready(){
     Face faces[] = { Face(Vector3(1, 0, -1), Vector3(1, 0, 1), Vector3(-1, 0, 1)),
@@ -28,6 +30,30 @@ void SurfaceOptimization::_ready(){
     Godot::print(faces[0].checkContiguiousCoplanar(faces[1]) ? "true" : "false");
     Godot::print(faces[4].checkContiguiousCoplanar(faces[1]) ? "true" : "false");
 
+    //Godot::print(s(sizeof(Face)));
+    //std::vector<int> ints;
+    //for(int i = 0; i < 10; i++)
+    //    ints.push_back(i);
+    //Godot::print(s(ints));
+    //std::cout << s(ints).ascii().get_data() << std::endl;
+
+    {
+        Timer t;
+        gout << "Will this work?\n\n" << 21 << " I like that number" << std::endl;
+        gout << 1 << std::endl << 2 << std::endl << 3 << std::endl << 4.5 << std::endl;
+        gout << std::setw(50) << std::right << "hello!" << std::endl;
+
+        gout << std::endl << std::endl << "The size of gout is: " << sizeof(gout) << std::endl;
+        gout << "The size of cout is: " << sizeof(std::cout) << std::endl;
+
+        String test = "This is a string I am writing! μ";
+
+        gout << test << std::endl;
+        gout << surf.verts[0] << std::endl;
+        gout << L"μ" << std::endl;
+        t.stop(gout);
+    }
+
     surf = Surface::fromContiguousCoplanarFaces(std::vector<Face>(faces, faces + sizeof(faces)/sizeof(faces[0])));
 
     visualizeEdges(surf, surf.norms[0]);
@@ -35,7 +61,6 @@ void SurfaceOptimization::_ready(){
 }
 
 void SurfaceOptimization::visualizeEdges(Surface surface, Vector3 normal){
-    Timer t;
 	for(int i = 0; i < surface.indecies.size(); i += 3){
 		SurfaceTool* line = SurfaceTool::_new();
 		normal = normal.normalized() / 10000;
