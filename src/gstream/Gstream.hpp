@@ -18,26 +18,28 @@
 #include <sstream>
 
 // Define how Godot Strings get processed by wostreams
-std::wostream& operator<<(std::wostream& stream, godot::String& string){
+inline std::wostream& operator<<(std::wostream& stream, const godot::String& string){
     stream << string.unicode_str();
     return stream;
 }
 // By defining an rvalue function as well, any datatype with a String() opperator
 // is now supported by any wostream
-std::wostream& operator<<(std::wostream& stream, godot::String&& string){
+inline std::wostream& operator<<(std::wostream& stream, const godot::String&& string){
     return stream << string;
 }
 
 namespace godot {
+    using std::endl;
+
     // Function which converts anything with << overloaded for wostreams, into a Godot String
     template<class T>
-    godot::String convertToString(T& t) {
+    godot::String convertToString(const T& t) {
         std::wstringstream ss;
         ss << t;
         return godot::String(ss.str().c_str());
     }
     // Macro enabling shorthand conversions
-    #define c(x) convertToString(x)
+    #define to_string(x) convertToString(x)
 
     // Original class code from: http://videocortex.io/2017/custom-stream-buffers/
     class godot_streambuf: public std::wstreambuf {

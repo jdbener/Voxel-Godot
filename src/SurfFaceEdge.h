@@ -5,21 +5,24 @@
 #include "ArrayMesh.hpp"
 #include "MeshInstance.hpp"
 
+#include "gstream/Gstream.hpp"
+
 #include <vector>
+#include <queue>
 
 // Add ranged based for loop support to PoolVector3Array and PoolIntArray
 namespace godot{
-	#define RANGED_BASED_FOR(x) inline auto begin(godot::x& what){\
+	#define __RANGED_BASED_FOR__(x) inline auto begin(godot::x& what){\
 		return what.write().ptr();\
 	}\
 	inline auto end(godot::x& what){\
 		return &what.write()[what.size()];\
 	}
 
-	RANGED_BASED_FOR(PoolVector3Array)
-	RANGED_BASED_FOR(PoolVector2Array)
-	RANGED_BASED_FOR(PoolColorArray)
-	RANGED_BASED_FOR(PoolIntArray)
+	__RANGED_BASED_FOR__(PoolVector3Array)
+	__RANGED_BASED_FOR__(PoolVector2Array)
+	__RANGED_BASED_FOR__(PoolColorArray)
+	__RANGED_BASED_FOR__(PoolIntArray)
 };
 
 using namespace godot;
@@ -61,30 +64,19 @@ public:
 	// Indecies
 	PoolIntArray indecies;
 
-	// Constructs a surface from a list of contiguous, coplanar, faces
-	static Surface fromContiguousCoplanarFaces(std::vector<Face> faces);
-	// Converts the surface into a mesh
-	ArrayMesh* getMesh(ArrayMesh* mesh = nullptr);
-
 	// Adds another surface to this one
-	void append(Surface& other){
-		int maxIndex = verts.size();
-
-		for (Vector3& vert: other.verts)
-			verts.push_back(vert);
-		for (Vector3& normal: other.norms)
-			norms.push_back(normal);
-		for (Vector2& uv: other.uvs)
-			uvs.push_back(uv);
-		for (Color& color: other.colors)
-			colors.push_back(color);
-		for (int index: other.indecies)
-			indecies.push_back(index + maxIndex);
-	}
-
+	void append(Surface& other);
 	void append(Surface&& other){
 		append(other);
 	}
+
+	// Constructs a surface from a list of contiguous, coplanar, faces
+	static Surface fromContiguousCoplanarFaces(std::vector<Face> faces);
+	// Constructs a surface from an arbitrary list of faces
+	static Surface fromFaces(std::vector<Face> faces);
+
+	// Converts the surface into a mesh
+	ArrayMesh* getMesh(ArrayMesh* mesh = nullptr);
 };
 
 class Face{
@@ -96,20 +88,26 @@ public:
 	Vertex a, b, c, d;
 	// Surface Normal
 	Vector3 normal;
+	// Marker to differentiate faces of different block types
+	int blockID;
 
 	// Gets a list of edges representing the outline of this face
 	std::vector<Edge> getOutlineEdges();
 	// Determines weather or not two faces are coplanar and contiguious
 	bool checkContiguiousCoplanar(Face& other);
+	bool checkContiguiousCoplanar(Face&& other){ return checkContiguiousCoplanar(other); }
+	// Determines if two faces have the same blockID
+	bool checkType(Face& other){ return blockID == other.blockID; }
+	bool checkType(Face&& other){ return checkType(other); }
 	// Constructs a surface from this face
 	Surface getSurface();
 
-	Face(Vertex _a, Vertex _b, Vertex _c) : a(_a), b(_b), c(_c){
+	Face(Vertex _a, Vertex _b, Vertex _c, int bid = 0) : a(_a), b(_b), c(_c), blockID(bid) {
 		type = Face::Type::TRIANGLE;
 		calculateNormal();
 	}
 
-	Face(Vector3 _a, Vector3 _b, Vector3 _c) {
+	Face(Vector3 _a, Vector3 _b, Vector3 _c, int bid = 0) : blockID(bid) {
 		type = Face::Type::TRIANGLE;
 		a = Vertex(_a);
 		b = Vertex(_b);
@@ -117,12 +115,12 @@ public:
 		calculateNormal();
 	}
 
-	Face(Vertex _a, Vertex _b, Vertex _c, Vertex _d) : a(_a), b(_b), c(_c), d(_d){
+	Face(Vertex _a, Vertex _b, Vertex _c, Vertex _d, int bid = 0) : a(_a), b(_b), c(_c), d(_d), blockID(bid){
 		type = Face::Type::QUAD;
 		calculateNormal();
 	}
 
-	Face(Vector3 _a, Vector3 _b, Vector3 _c, Vector3 _d) {
+	Face(Vector3 _a, Vector3 _b, Vector3 _c, Vector3 _d, int bid = 0) : blockID(bid) {
 		type = Face::Type::QUAD;
 		a = Vertex(_a);
 		b = Vertex(_b);
@@ -133,10 +131,6 @@ public:
 
 	void calculateNormal(){
 		normal = (c.point - a.point).cross(b.point - a.point).normalized();
-	}
-
-	bool checkContiguiousCoplanar(Face&& other){
-		return checkContiguiousCoplanar(other);
 	}
 
   /*PoolVector3Array getVertecies(){

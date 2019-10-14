@@ -3,7 +3,118 @@
 #include "SurfaceTool.hpp"
 #include "Geometry.hpp"
 
-#include "timer.h"
+//#include "timer.h"
+
+/*------------------------
+        RemoveList
+------------------------*/
+// Linked list optimized for node removal
+template <class T>
+class RemoveList {
+public:
+    class Node {
+    private:
+        RemoveList* owner;
+    public:
+        T* data;
+        Node* previous, *next;
+
+        Node(RemoveList* owner){
+            this->owner = owner;
+            previous = nullptr;
+            next = nullptr;
+        }
+
+        // Deletes this node and returns a pointer to the next node in the list
+        Node* remove(){
+            // Variable tracking a pointer to this node, it must be set in roundabout
+            // ways since you can't delete a this pointer
+            Node* toDelete;
+            // Non-first node
+            if(previous){
+                toDelete = previous->next;
+                previous->next = next;
+                if(next) next->previous = previous;
+            // First node
+            } else {
+                toDelete = owner->start;
+                owner->start = next;
+                if(next) next->previous = nullptr;
+            }
+
+            Node* out = next;
+            if(toDelete) delete toDelete;
+            // Return a pointer to the next node in the list
+            return out;
+        }
+
+        // Inserts <what> into the list after this node. Returns a pointer to the
+        // new node
+        void insertAfter(T* what, Node* me = nullptr){
+            // Save next node
+            Node* oldNext = next;
+            // Figure out current node address (if not specified)
+            if(!me)
+                if(next)
+                    me = next->previous;
+                else if(previous)
+                    me = previous->next;
+
+            // Replace next
+            next = new Node(owner);
+            next->data = what;
+            next->previous = me;
+            next->next = oldNext;
+
+            if(owner->end == me) owner->end = next;
+        }
+
+        T& operator*(){ return *data; }
+        // Seams unessisary but when removed code breaks
+        operator T(){ return *data; }
+    };
+
+    Node *start, *end;
+    RemoveList() : start(nullptr), end(nullptr) {}
+    RemoveList(T* begin, T* end){
+        start = new Node(this);
+        Node* current = start;
+        while(begin <= end){
+            current->data = begin;
+            begin++;
+            if(begin <= end){
+                current->next = new Node(this);
+                current->next->previous = current;
+                current = current->next;
+            }
+        }
+        this->end = current;
+    }
+
+    ~RemoveList(){
+        while(start){
+            Node* toDelete = start;
+            start = start->next;
+            delete toDelete;
+        }
+    }
+
+    void push_back(T* what){
+        if(end)
+            end->insertAfter(what, end);
+        else {
+            end = start = new Node(this);
+            end->data = what;
+        }
+    }
+
+    size_t size(){
+        size_t count = 0;
+        Node* current = start;
+        while(current = current->next) count++;
+        return count;
+    }
+};
 
 /*------------------------
         Surface
@@ -30,10 +141,27 @@ ArrayMesh* Surface::getMesh(ArrayMesh* mesh /* = nullptr*/){
     return mesh;
 }
 
+// Adds another surface to this one
+void Surface::append(Surface& other){
+    int maxIndex = verts.size();
+
+    for (Vector3& vert: other.verts)
+        verts.push_back(vert);
+    for (Vector3& normal: other.norms)
+        norms.push_back(normal);
+    for (Vector2& uv: other.uvs)
+        uvs.push_back(uv);
+    for (Color& color: other.colors)
+        colors.push_back(color);
+    for (int index: other.indecies)
+        indecies.push_back(index + maxIndex);
+}
+
 // Constructs a surface from a list of contiguous, coplanar, faces
 Surface Surface::fromContiguousCoplanarFaces(std::vector<Face> faces){
-    typedef std::vector<Edge*> EdgeVect;
-    Surface surf;
+    // Don't spend resources if the vector only contains one face
+    if(faces.size() == 1)
+        return faces[0].getSurface();
 
     // Make list of edges
     std::vector<Edge> edges;
@@ -42,7 +170,7 @@ Surface Surface::fromContiguousCoplanarFaces(std::vector<Face> faces){
             edges.push_back(edge);
 
     // Remove interior Edges
-    EdgeVect borderEdges;
+    RemoveList<Edge> borderEdges; // RemoveList saves ~10-20μs
     // Lambda counting the number of times each edge occures
     auto edgeOccurences = [edges](Edge& what){
         int occurences = 0;
@@ -57,17 +185,19 @@ Surface Surface::fromContiguousCoplanarFaces(std::vector<Face> faces){
             borderEdges.push_back(&edge);
 
     // Sort edges
-    EdgeVect sortedBorderEdges(borderEdges.size());
-    sortedBorderEdges[0] = borderEdges[0];
-    borderEdges.erase(borderEdges.begin());
-    for (int i = 1; i < sortedBorderEdges.size(); i++)
-        for (int j = 0; j < borderEdges.size(); j++)
-            if (borderEdges[j]->sharePoint(*sortedBorderEdges[i - 1]) and !(*borderEdges[j] == *sortedBorderEdges[i - 1])){
-                sortedBorderEdges[i] = borderEdges[j];
-                borderEdges.erase(borderEdges.begin() + j);
+    std::vector<Edge*> sortedBorderEdges(borderEdges.size());
+    sortedBorderEdges[0] = borderEdges.start->data;
+    borderEdges.start->remove();
+    for (int i = 1; i < sortedBorderEdges.size(); i++){
+        for (auto edge = borderEdges.start; edge; edge = edge->next)
+            if (edge->data->sharePoint(*sortedBorderEdges[i - 1]) && !(*edge->data == *sortedBorderEdges[i - 1])){
+                sortedBorderEdges[i] = edge->data;
+                edge->remove();
                 break;
             }
+    }
 
+    Surface surf;
     // Extract verticies, removing those breaking straight edges
     for (int i = 0; i < sortedBorderEdges.size(); i++){
         bool keep = false;
@@ -101,6 +231,37 @@ Surface Surface::fromContiguousCoplanarFaces(std::vector<Face> faces){
     return surf;
 }
 
+// Constructs a surface from an arbitrary list of faces
+Surface Surface::fromFaces(std::vector<Face> _faces){
+    Surface out;
+    // Convert the input to a removal optimized linked list
+    RemoveList<Face> faces(&_faces.front(), &_faces.back());
+    auto face = faces.start;
+    // For every input face...
+    while(face){
+        // Create a vector storing all of the faces contiguous to this face
+        std::vector<Face> contiguous = {*face};
+        // For every other face...
+        for(auto faceCompare = face->next; faceCompare; faceCompare = faceCompare->next)
+            // Check if this face is contiguous to one of our current faces of the same type
+            for(Face& confirmedFace: contiguous){
+                if(confirmedFace.checkContiguiousCoplanar(*faceCompare) && confirmedFace.checkType(*faceCompare)){
+                    // If so add it to the vector
+                    contiguous.push_back(*faceCompare);
+                    // And remove it from the input set
+                    faceCompare->remove();
+                    break;
+                }
+            }
+
+        // Remove the original face from the input
+        face = face->remove();
+        // Construct the contiguous surface and add it to the current one
+        out.append(Surface::fromContiguousCoplanarFaces(contiguous));
+    }
+    return out;
+}
+
 /*------------------------
         Face
 ------------------------*/
@@ -123,7 +284,6 @@ std::vector<Edge> Face::getOutlineEdges(){
 
 // Determines weather or not two faces are coplanar and contiguious
 bool Face::checkContiguiousCoplanar(Face& other){
-    Timer t;
     // If the normals are different the faces can't be coplanar
     if(normal != other.normal) return false;
 
