@@ -22,16 +22,24 @@ const int CHUNK_ARRAY_SIZE = CHUNK_DIMENSIONS * CHUNK_DIMENSIONS * CHUNK_DIMENSI
 const int SUBCHUNK_LEVELS = log(CHUNK_DIMENSIONS)/log(2); // The maximum number of octree levels in a chunk
 
 class VoxelInstance;
+class Face;
 typedef void (*IterationFunction)(VoxelInstance* me, int index);
 
 struct BlockData {
-	unsigned int blockID = 0;
+	enum Flags{
+			TRANSPARENT = 1
+	};
 	unsigned char flags = 0;
+	unsigned int blockID = 0;
+
+	bool checkFlags(int mask){
+		return flags & mask > 0;
+	}
 };
 
 class VoxelInstance {
 public:
-	enum VoxelFlags {
+	enum Flags {
 		/* Surface Visibility */
 		TOP_VISIBLE = 1,
 		BOTTOM_VISIBLE = 2,
@@ -42,8 +50,8 @@ public:
 
 
 	};
-	BlockData* data;
-	unsigned char instanceData = 0;
+	BlockData* blockData;
+	unsigned char flags = 0;
 
 	//unsigned int blockID = 0;
 	// variable storing which level of subchunk this instance is
@@ -54,7 +62,7 @@ public:
 	VoxelInstance* parent = nullptr;
 
 	VoxelInstance(BlockData* data = new BlockData()){
-		this->data = data;
+		this->blockData = data;
 	}
 
 	// Copy constructor
@@ -63,15 +71,10 @@ public:
 	VoxelInstance(VoxelInstance&& origin);
 
 	~VoxelInstance(){
-		if(subVoxels){
+		if(subVoxels)
 			delete [] subVoxels;
-			subVoxels = nullptr;
-		}
-
-		if(data){
-			delete data;
-			data = nullptr;
-		}
+		if(blockData)
+			delete blockData;
 	}
 
 	// Function which recursiveley converts an array of blockIDs into an octree
@@ -84,18 +87,18 @@ public:
 	// Function which given an arbitrary point in 3D space within the voxel
 	// finds the subvoxel of the requested <lvl> which contains the point
 	VoxelInstance* find(int lvl, Vector3& position);
+	VoxelInstance* find(int lvl, Vector3&& position) { return find(lvl, position); }
 	// Function which determines if an arbitrary point in space is within this voxel
 	bool within(Vector3& position);
-
+	//Function which gets the visible faces from a voxel instance
+	void getFaces(std::vector<Face>& out);
 	std::vector<Face> getFaces(){
-		/*if(data->flags & BlockData::VoxelFlags::TOP_VISIBLE){
-
-		}*/
-		return std::vector<Face>();
+		std::vector<Face> out;
+		getFaces(out);
+		return out;
 	}
-
-
-
+	bool checkInstanceFlags(int mask){
+		return flags & mask > 0;
 	int iteraterate(int lvl, IterationFunction func_ptr){
 		int index = 0;
 		iteraterate(lvl, func_ptr, index);
@@ -128,18 +131,66 @@ protected:
 	// Function which recursively calculates the center of all of the sub voxels
 	void calculateCenters();
 	// Function which recursively calculates the visibility of all the subVoxels
-	void calculateVisibility(){
-		/*if(level != SUBCHUNK_LEVELS){
-			float distance =
-		}*/
+	void calculateVisibility();
 
-
-	}
 };
 
 class Chunk: public VoxelInstance, public MeshInstance {
 	GODOT_CLASS(Chunk, MeshInstance)
 public:
+	#warning TODO: replace itterater class with old recursive itteration code
+	class Itterater {
+	public:
+		#define validate() if (index > pow(pow(2, level - 1) * 2,3) || index < 0) return false; \
+			return true
+		int index, level;
+		Chunk* owner;
+
+		Itterater(Chunk* o, int i = 0, int lvl = 0) : owner(o), index(i), level(lvl) {}
+
+		bool operator+=(int dist){
+			index += dist;
+			validate();
+		}
+
+		bool operator++(){ return operator+=(1); }
+		bool operator++(int){ return operator++(); }
+
+		bool operator==(Itterater& other){ return index == other.index && owner == other.owner && level == other.level; }
+		bool operator==(Itterater&& other){ return *this == other; }
+		bool operator!=(Itterater& other){ return !(*this == other); }
+		bool operator!=(Itterater&& other){ return *this != other; }
+
+		VoxelInstance& operator*(){
+			// Variable storing how far across a one voxel at this level is
+			const int DIMENSIONS = pow(2, level);
+			// Variable storing how long each dimmension of the "array" at this level is
+			int ARRAY_LENGTH = pow(2, SUBCHUNK_LEVELS - level);
+			if (level < 3) ARRAY_LENGTH++;
+			const int UNMAPED_LENGTH = SUBCHUNK_LEVELS - level;
+
+			int idx = index;
+			gout << idx << " - " << DIMENSIONS << " - " << ARRAY_LENGTH << " <- ";
+			int x = idx / (ARRAY_LENGTH * ARRAY_LENGTH);
+    		idx -= (x * ARRAY_LENGTH * ARRAY_LENGTH);
+			//#define remap(x) x = (ARRAY_LENGTH - x * ARRAY_LENGTH - ARRAY_LENGTH / 2) * DIMENSIONS
+			#define remap(x) x = (UNMAPED_LENGTH - x - UNMAPED_LENGTH / 2); if(level < 3) x--; x *= DIMENSIONS;
+			//#define remap(x) x = (ARRAY_LENGTH - x - ARRAY_LENGTH / 2)
+			//#define remap(x) x = x;
+			remap(x);
+    		int y = idx / ARRAY_LENGTH;
+			remap(y);
+    		int z = idx % ARRAY_LENGTH;
+			remap(z);
+			gout << Vector3(x, y, z) << endl;
+			return *owner->find(level, Vector3(x, y, z));
+		}
+
+		operator VoxelInstance(){
+			return operator*();
+		}
+
+	};
 	bool loaded = false, rendered = false;
 
 	static void _register_methods(){
@@ -158,28 +209,22 @@ public:
 
 	void initalize(){
 		int nullData[CHUNK_ARRAY_SIZE];
-		for(int i = 0; i < CHUNK_ARRAY_SIZE; i++){
+		for(int i = 0; i < CHUNK_ARRAY_SIZE; i++)
 			nullData[i] = 0;
-		}
 		VoxelInstance::init(nullData);
+		// Shouldn't be nessicary?
+		VoxelInstance::calculateCenters();
 	}
 
-	/*Chunk(Vector3 center, bool initalize = false) {
-		this->center = center;
-		if(initalize){
-			int nullData[CHUNK_ARRAY_SIZE];
-			for(int i = 0; i < CHUNK_ARRAY_SIZE; i++){
-				nullData[i] = 0;
-			}
-			VoxelInstance::init(nullData);
-		}
+	Itterater begin(int level = 0){
+		return Itterater(this, 0, level);
 	}
 
-	Chunk(Vector3 center, int blocks[]){
-		this->center = center;
-		VoxelInstance::init(blocks);
-		VoxelInstance::prune();
-	}*/
+	Itterater end(int level = 0){
+		int DIMENSIONS = pow(2, SUBCHUNK_LEVELS - level);
+		if (level < 3) DIMENSIONS++;
+		return Itterater(this, DIMENSIONS * DIMENSIONS * DIMENSIONS, level);
+	}
 
 	void tick(){
 		// do something here!

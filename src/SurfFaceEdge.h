@@ -8,7 +8,6 @@
 #include "gstream/Gstream.hpp"
 
 #include <vector>
-#include <queue>
 
 // Add ranged based for loop support to PoolVector3Array and PoolIntArray
 namespace godot{
@@ -38,16 +37,11 @@ struct Vertex {
 	Vertex(Vector3 p = Vector3(0, 0, 0), Vector2 u = Vector2(-1, -1), Color c = Color(-1, -1, -1, -1))
 		: point(p), uv(u), color(c) {}
 
-	operator Vector3(){
-		return point;
-	}
-
-	operator Vector2(){
-		return uv;
-	}
-
-	operator Color(){
-		return color;
+	operator Vector3(){ return point; }
+	operator Vector2(){ return uv; }
+	operator Color(){ return color; }
+	bool operator==(Vertex& other) const {
+		return point == other.point && uv == other.uv && color == other.color;
 	}
 };
 
@@ -74,7 +68,6 @@ public:
 	static Surface fromContiguousCoplanarFaces(std::vector<Face> faces);
 	// Constructs a surface from an arbitrary list of faces
 	static Surface fromFaces(std::vector<Face> faces);
-
 	// Converts the surface into a mesh
 	ArrayMesh* getMesh(ArrayMesh* mesh = nullptr);
 };
@@ -99,8 +92,18 @@ public:
 	// Determines if two faces have the same blockID
 	bool checkType(Face& other){ return blockID == other.blockID; }
 	bool checkType(Face&& other){ return checkType(other); }
+	Face reverse(){
+		if(type == Type::TRIANGLE)
+			return Face(c, b, a, blockID);
+		else
+			return Face(d, c, b, a, blockID);
+	}
 	// Constructs a surface from this face
 	Surface getSurface();
+
+	bool operator==(Face& o) const {
+		return a == o.a && b == o.b && c == o.c && d == o.d && blockID == o.blockID;
+	}
 
 	Face(Vertex _a, Vertex _b, Vertex _c, int bid = 0) : a(_a), b(_b), c(_c), blockID(bid) {
 		type = Face::Type::TRIANGLE;

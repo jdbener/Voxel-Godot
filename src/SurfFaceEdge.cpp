@@ -111,7 +111,7 @@ public:
     size_t size(){
         size_t count = 0;
         Node* current = start;
-        while(current = current->next) count++;
+        if(current) while(current = current->next) count++;
         return count;
     }
 };
@@ -183,6 +183,9 @@ Surface Surface::fromContiguousCoplanarFaces(std::vector<Face> faces){
         // An edge is a border edge only if it occures once (no other faces share the egde)
         if (edgeOccurences(edge) == 1)
             borderEdges.push_back(&edge);
+
+    if(!borderEdges.size())
+        return Surface();
 
     // Sort edges
     std::vector<Edge*> sortedBorderEdges(borderEdges.size());

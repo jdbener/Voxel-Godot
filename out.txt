@@ -1,0 +1,21 @@
+handle_crash: Program crashed with signal 11
+Dumping the backtrace. Please include this when reporting the bug on https://github.com/godotengine/godot/issues
+[1] /usr/lib/libc.so.6(+0x3a7e0) [0x7fb5f985b7e0] (??:0)
+[2] Surface::fromContiguousCoplanarFaces(std::vector<Face, std::allocator<Face> >) (??:0)
+[3] Surface::fromFaces(std::vector<Face, std::allocator<Face> >) (??:0)
+[4] SurfaceOptimization::_ready() (??:0)
+[5] godot_variant godot::__wrapped_method<SurfaceOptimization, void>(void*, void*, void*, int, godot_variant**) (??:0)
+[6] godot() [0xab791b] (<artificial>:?)
+[7] godot() [0xb9b00d] (<artificial>:?)
+[8] godot() [0x16d7ea5] (??:?)
+[9] godot() [0x1904988] (??:?)
+[10] godot() [0x214b574] (??:?)
+[11] godot() [0x165856c] (<artificial>:?)
+[12] godot() [0x16584c3] (<artificial>:?)
+[13] godot() [0x16584c3] (<artificial>:?)
+[14] godot() [0x16d7827] (<artificial>:?)
+[15] godot() [0x16d7936] (??:?)
+[16] godot() [0x7c53f4] (??:?)
+[17] /usr/lib/libc.so.6(__libc_start_main+0xf3) [0x7fb5f9847ee3] (??:0)
+[18] godot() [0x7d2c1e] (??:?)
+-- END OF BACKTRACE --

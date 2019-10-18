@@ -13,5 +13,7 @@ build:  $(OBJ)
 clean:
 	rm $(OBJ)
 
+remake: clean build
+
 run:
 	echo "Built sucessfully"
