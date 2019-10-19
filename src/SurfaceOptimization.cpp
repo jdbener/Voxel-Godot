@@ -51,36 +51,33 @@ void SurfaceOptimization::_ready(){
 
     Chunk c;
     c.initalize();
-    Chunk::Itterater it(&c, 0);
-    /*for(VoxelInstance& v: c) {
-        gout << v.center << endl;
-        if(v.center.y < 0)
-            v.blockData->blockID = 1;
+    c.iteraterate(BLOCK_LEVEL, [](VoxelInstance* v, int) {
+        //gout << v->center << endl;
+        if(v->center.y > 0)
+            v->blockData->blockID = 1;
         else {
-            v.blockData->blockID = 0;
-            v.blockData->flags |= BlockData::Flags::TRANSPARENT;
+            v->blockData->blockID = 0;
+            v->blockData->flags |= BlockData::Flags::TRANSPARENT;
         }
-    }*/
-    //c.prune();
+    });
+    c.prune();
+    c.recalculate();
 
     std::vector<Face> facesArr;
-    int lvl = 2;
-    for(auto v = c.begin(lvl); v != c.end(lvl); v++){
-        (*v).getFaces(facesArr);
-        //gout << v.center << endl;
-    }
+    c.iteraterate(1, [&facesArr](VoxelInstance* me, int) {
+        me->getFaces(facesArr);
+    });
 
     Surface surf;
     for (Face& f: facesArr)
         surf.append(f.getSurface());
+    //Surface surf = Surface::fromFaces(facesArr);
 
+    gout << c.dump() << endl;
     gout << facesArr.size() << " faces" << endl;
-    //surf = Surface::fromFaces(facesArr);
-
-    //gout << c.dump() << endl;
 
     visualizeEdges(surf, surf.norms[0]);
-    //this->set_mesh(surf.getMesh());
+    this->set_mesh(surf.getMesh());
 }
 
 void SurfaceOptimization::visualizeEdges(Surface surface, Vector3 normal){

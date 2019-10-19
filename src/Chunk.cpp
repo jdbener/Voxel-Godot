@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <map>
+#include <functional>
 
 #include "SurfFaceEdge.h"
 
@@ -73,21 +74,26 @@ bool VoxelInstance::prune(){
 
     uint count = 0;	// Number of times the most common blockID appears in the sublevels
     if(subVoxels){ // Make sure there are sublevels before finding the mode of the sublevels
-        std::map<uint, uint> m; // Map used to sort blockIDs
+        struct CountHolder{
+                uint count;
+                BlockData* d;
+        };
+        std::map<uint, CountHolder> m; // Map used to sort blockIDs
         // Store the blockIDs sorted by occurence in a map
         for(size_t i = 0; i < 8; i++) {
             uint key = subVoxels[i].blockData->blockID;
-            std::map<uint, uint>::iterator it = m.find(key);
+            std::map<uint, CountHolder>::iterator it = m.find(key);
             if(it == m.end())
-                m.insert(std::make_pair(key, 1));
+                m.insert(std::make_pair(key, (CountHolder){1, subVoxels[i].blockData}));
             else
-                it->second++;
+                it->second.count++;
         }
         // Find the most common blockID in the sublevels and store it as this level's blockID
         for(auto& it: m)
-            if(it.second > count) {
-                count = it.second;
-                blockData->blockID = it.first;
+            if(it.second.count > count) {
+                count = it.second.count;
+                // TODO: get from database?
+                *blockData = *it.second.d;
             }
     } else
         return true; // If we have already pruned this branch we are safe to prune higher
@@ -251,22 +257,22 @@ void VoxelInstance::calculateVisibility(){
     // Distance to the center of the next voxel
     float distance = pow(2, level - 1) * 2;
     // Top
-    if(!find(level, center + Vector3(0, distance, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
+    if(find(level, center + Vector3(0, distance, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
         flags |= VoxelInstance::Flags::TOP_VISIBLE;
     // Bottom
-    if(!find(level, center - Vector3(0, distance, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
+    if(find(level, center - Vector3(0, distance, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
         flags |= VoxelInstance::Flags::BOTTOM_VISIBLE;
     // North
-    if(!find(level, center + Vector3(distance, 0, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
+    if(find(level, center + Vector3(distance, 0, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
         flags |= VoxelInstance::Flags::NORTH_VISIBLE;
     // South
-    if(!find(level, center - Vector3(distance, 0, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
+    if(find(level, center - Vector3(distance, 0, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
         flags |= VoxelInstance::Flags::SOUTH_VISIBLE;
     // East
-    if(!find(level, center + Vector3(0, 0, distance))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
+    if(find(level, center + Vector3(0, 0, distance))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
         flags |= VoxelInstance::Flags::EAST_VISIBLE;
     // West
-    if(!find(level, center - Vector3(0, 0, distance))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
+    if(find(level, center - Vector3(0, 0, distance))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
         flags |= VoxelInstance::Flags::WEST_VISIBLE;
 
     if(subVoxels)
@@ -293,8 +299,15 @@ String copy(wchar_t what, int times){
     return String(s.str().c_str());
 }
 
+String to_string(bool what){
+    if (what)
+        return "true";
+    return "false";
+}
+
 String VoxelInstance::dump(){
-    String out = copy('\t', SUBCHUNK_LEVELS - level) + to_string(level) + " - " + to_string(blockData->blockID) + " - {" + center + "}\n";
+    String out = copy('\t', SUBCHUNK_LEVELS - level) + to_string(level) + " - " + to_string(blockData->blockID) +
+        " - " + to_string(flags) + " - " + to_string(blockData->checkFlags(BlockData::Flags::TRANSPARENT))+ " - {" + center + "}\n";
     if(subVoxels)
         for(size_t i = 0; i < 8; i++)
             out += subVoxels[i].dump();

@@ -2,6 +2,7 @@
 #define CHUNK_H
 
 #include <vector>
+#include <functional>
 
 #include "SurfaceOptimization.h"
 
@@ -20,10 +21,11 @@ using namespace godot;
 const int CHUNK_DIMENSIONS = 16; // The number of blocks which will make up one side of a chunk (16 ripped from minecraft ;)
 const int CHUNK_ARRAY_SIZE = CHUNK_DIMENSIONS * CHUNK_DIMENSIONS * CHUNK_DIMENSIONS; // The total number of blocks in a chunk
 const int SUBCHUNK_LEVELS = log(CHUNK_DIMENSIONS)/log(2); // The maximum number of octree levels in a chunk
+const int BLOCK_LEVEL = 0;
 
 class VoxelInstance;
 class Face;
-typedef void (*IterationFunction)(VoxelInstance* me, int index);
+typedef std::function<void(VoxelInstance*, int)> IterationFunction;
 
 struct BlockData {
 	enum Flags{
@@ -97,16 +99,16 @@ public:
 		getFaces(out);
 		return out;
 	}
-	bool checkInstanceFlags(int mask){
-		return flags & mask > 0;
+	//Function which runs the provided function for every instance recursively
 	int iteraterate(int lvl, IterationFunction func_ptr){
 		int index = 0;
 		iteraterate(lvl, func_ptr, index);
 		return index;
 	}
-
-	int iteraterateBlocks(IterationFunction func_ptr){
-		return iteraterate(0, func_ptr);
+	int iteraterateBlocks(IterationFunction func_ptr){ return iteraterate(BLOCK_LEVEL, func_ptr); }
+	// Function which returns true if the proived mask can be found in this instance's flags
+	bool checkInstanceFlags(int mask){
+		return flags & mask > 0;
 	}
 
 	// Function which preforms all of the nessicary chunk calculations
@@ -138,59 +140,6 @@ protected:
 class Chunk: public VoxelInstance, public MeshInstance {
 	GODOT_CLASS(Chunk, MeshInstance)
 public:
-	#warning TODO: replace itterater class with old recursive itteration code
-	class Itterater {
-	public:
-		#define validate() if (index > pow(pow(2, level - 1) * 2,3) || index < 0) return false; \
-			return true
-		int index, level;
-		Chunk* owner;
-
-		Itterater(Chunk* o, int i = 0, int lvl = 0) : owner(o), index(i), level(lvl) {}
-
-		bool operator+=(int dist){
-			index += dist;
-			validate();
-		}
-
-		bool operator++(){ return operator+=(1); }
-		bool operator++(int){ return operator++(); }
-
-		bool operator==(Itterater& other){ return index == other.index && owner == other.owner && level == other.level; }
-		bool operator==(Itterater&& other){ return *this == other; }
-		bool operator!=(Itterater& other){ return !(*this == other); }
-		bool operator!=(Itterater&& other){ return *this != other; }
-
-		VoxelInstance& operator*(){
-			// Variable storing how far across a one voxel at this level is
-			const int DIMENSIONS = pow(2, level);
-			// Variable storing how long each dimmension of the "array" at this level is
-			int ARRAY_LENGTH = pow(2, SUBCHUNK_LEVELS - level);
-			if (level < 3) ARRAY_LENGTH++;
-			const int UNMAPED_LENGTH = SUBCHUNK_LEVELS - level;
-
-			int idx = index;
-			gout << idx << " - " << DIMENSIONS << " - " << ARRAY_LENGTH << " <- ";
-			int x = idx / (ARRAY_LENGTH * ARRAY_LENGTH);
-    		idx -= (x * ARRAY_LENGTH * ARRAY_LENGTH);
-			//#define remap(x) x = (ARRAY_LENGTH - x * ARRAY_LENGTH - ARRAY_LENGTH / 2) * DIMENSIONS
-			#define remap(x) x = (UNMAPED_LENGTH - x - UNMAPED_LENGTH / 2); if(level < 3) x--; x *= DIMENSIONS;
-			//#define remap(x) x = (ARRAY_LENGTH - x - ARRAY_LENGTH / 2)
-			//#define remap(x) x = x;
-			remap(x);
-    		int y = idx / ARRAY_LENGTH;
-			remap(y);
-    		int z = idx % ARRAY_LENGTH;
-			remap(z);
-			gout << Vector3(x, y, z) << endl;
-			return *owner->find(level, Vector3(x, y, z));
-		}
-
-		operator VoxelInstance(){
-			return operator*();
-		}
-
-	};
 	bool loaded = false, rendered = false;
 
 	static void _register_methods(){
@@ -214,16 +163,6 @@ public:
 		VoxelInstance::init(nullData);
 		// Shouldn't be nessicary?
 		VoxelInstance::calculateCenters();
-	}
-
-	Itterater begin(int level = 0){
-		return Itterater(this, 0, level);
-	}
-
-	Itterater end(int level = 0){
-		int DIMENSIONS = pow(2, SUBCHUNK_LEVELS - level);
-		if (level < 3) DIMENSIONS++;
-		return Itterater(this, DIMENSIONS * DIMENSIONS * DIMENSIONS, level);
 	}
 
 	void tick(){
