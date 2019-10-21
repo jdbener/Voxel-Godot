@@ -5,11 +5,10 @@
 
 #include "gstream/Gstream.hpp"
 #include <iomanip>
-
 #include <vector>
+#include <fstream>
 
 #include "timer.h"
-
 #include "Chunk.h"
 
 void SurfaceOptimization::_ready(){
@@ -48,33 +47,44 @@ void SurfaceOptimization::_ready(){
         Timer t;
         surf = Surface::fromFaces(std::vector<Face>(faces, faces + sizeof(faces)/sizeof(faces[0])));
     }*/
+    {
+        Chunk c;
+        c.initalize();
+        c.iteraterate(BLOCK_LEVEL, [](VoxelInstance* v, int) {
+            //gout << v->center << endl;
+            if(v->center.y > 0)
+                v->blockData->blockID = 1;
+            else {
+                v->blockData->blockID = 0;
+                v->blockData->flags |= BlockData::Flags::TRANSPARENT;
+            }
+        });
+        c.prune();
+        c.recalculate();
 
-    Chunk c;
-    c.initalize();
-    c.iteraterate(BLOCK_LEVEL, [](VoxelInstance* v, int) {
-        //gout << v->center << endl;
-        if(v->center.y > 0)
-            v->blockData->blockID = 1;
-        else {
-            v->blockData->blockID = 0;
-            v->blockData->flags |= BlockData::Flags::TRANSPARENT;
-        }
-    });
-    c.prune();
-    c.recalculate();
-
-    std::vector<Face> facesArr;
-    c.iteraterate(1, [&facesArr](VoxelInstance* me, int) {
-        me->getFaces(facesArr);
-    });
+        std::ofstream os("test.json");
+        cereal::JSONOutputArchive test(os);
+        test(c);
+    }
 
     Surface surf;
-    for (Face& f: facesArr)
-        surf.append(f.getSurface());
-    //Surface surf = Surface::fromFaces(facesArr);
+    {
+        Chunk c;
 
-    gout << c.dump() << endl;
-    gout << facesArr.size() << " faces" << endl;
+        std::ifstream is("test.json");
+        cereal::JSONInputArchive test(is);
+        test(c);
+
+        std::vector<Face> facesArr;
+        c.iteraterate(1, [&facesArr](VoxelInstance* me, int) {
+            me->getFaces(facesArr);
+        });
+
+        for (Face& f: facesArr)
+            surf.append(f.getSurface());
+
+        gout << facesArr.size() << " faces" << endl;
+    }
 
     visualizeEdges(surf, surf.norms[0]);
     this->set_mesh(surf.getMesh());

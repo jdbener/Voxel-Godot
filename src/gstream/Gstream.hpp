@@ -33,13 +33,11 @@ namespace godot {
 
     // Function which converts anything with << overloaded for wostreams, into a Godot String
     template<class T>
-    godot::String convertToString(const T& t) {
+    godot::String to_string(const T& t) {
         std::wstringstream ss;
         ss << t;
         return godot::String(ss.str().c_str());
     }
-    // Macro enabling shorthand conversions
-    #define to_string(x) convertToString(x)
 
     // Original class code from: http://videocortex.io/2017/custom-stream-buffers/
     class godot_streambuf: public std::wstreambuf {

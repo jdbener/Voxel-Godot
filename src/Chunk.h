@@ -4,10 +4,10 @@
 #include <vector>
 #include <functional>
 
-#include "SurfaceOptimization.h"
+#include <MeshInstance.hpp>
 
-#include "Godot.hpp"
-#include "MeshInstance.hpp"
+#include "SurfaceOptimization.h"
+#include "CerealGodot.h"
 
 using namespace godot;
 
@@ -35,7 +35,7 @@ struct BlockData {
 	unsigned int blockID = 0;
 
 	bool checkFlags(int mask){
-		return flags & mask > 0;
+		return (flags & mask) > 0;
 	}
 };
 
@@ -73,10 +73,8 @@ public:
 	VoxelInstance(VoxelInstance&& origin);
 
 	~VoxelInstance(){
-		if(subVoxels)
-			delete [] subVoxels;
-		if(blockData)
-			delete blockData;
+		if(subVoxels) delete [] subVoxels;
+		if(blockData) delete blockData;
 	}
 
 	// Function which recursiveley converts an array of blockIDs into an octree
@@ -99,22 +97,66 @@ public:
 		getFaces(out);
 		return out;
 	}
-	//Function which runs the provided function for every instance recursively
-	int iteraterate(int lvl, IterationFunction func_ptr){
-		int index = 0;
-		iteraterate(lvl, func_ptr, index);
-		return index;
-	}
-	int iteraterateBlocks(IterationFunction func_ptr){ return iteraterate(BLOCK_LEVEL, func_ptr); }
-	// Function which returns true if the proived mask can be found in this instance's flags
-	bool checkInstanceFlags(int mask){
-		return flags & mask > 0;
-	}
-
 	// Function which preforms all of the nessicary chunk calculations
 	void recalculate(){
 		calculateCenters();
 		calculateVisibility();
+	}
+
+	//Function which runs the provided function for every instance recursively
+	int iteraterate(int level, IterationFunction func_ptr, bool threaded = false){
+		int index = 0;
+		iteraterate(level, func_ptr, index, threaded);
+		return index;
+	}
+	int iteraterateBlocks(IterationFunction func_ptr, bool threaded = false)
+		{ return iteraterate(BLOCK_LEVEL, func_ptr, threaded); }
+	// Function which returns true if the proived mask can be found in this instance's flags
+	bool checkInstanceFlags(int mask){
+		return (flags & mask) > 0;
+	}
+
+	// Serialization
+	template<class Archive>
+	void save(Archive& archive) const {
+		archive(
+			cereal::make_nvp("blockID", blockData->blockID),
+			CEREAL_NVP(flags),
+			CEREAL_NVP(level),
+			CEREAL_NVP(center)
+		);
+		if(subVoxels){
+			archive(cereal::make_nvp("hasChildren", true));
+			for(int i = 0; i < 8; i++)
+				archive( cereal::make_nvp((std::string("child-") + std::to_string(i)).c_str(), subVoxels[i]) );
+		} else
+			archive(cereal::make_nvp("hasChildren", false));
+	}
+	template<class Archive>
+	void load(Archive& archive)
+	{
+		int blockID;
+		archive(cereal::make_nvp("blockID", blockID));
+		// TODO: load from database
+		if(blockData) delete blockData;
+		blockData = new BlockData();
+		blockData->blockID = blockID;
+
+		archive(
+			CEREAL_NVP(flags),
+			CEREAL_NVP(level),
+			CEREAL_NVP(center)
+		);
+
+		bool hasChildren;
+		archive(cereal::make_nvp("hasChildren", hasChildren));
+		if(subVoxels) delete [] subVoxels;
+		if(hasChildren){
+			subVoxels = new VoxelInstance [8];
+			for(int i = 0; i < 8; i++)
+				archive( cereal::make_nvp((std::string("child-") + std::to_string(i)).c_str(), subVoxels[i]) );
+		} else
+			subVoxels = nullptr;
 	}
 
 	// Debug functions
@@ -122,14 +164,8 @@ public:
 	String dump();
 
 protected:
-	void iteraterate(int lvl, IterationFunction func_ptr, int& index){
-		if(subVoxels && lvl != level)
-			for(int i = 0; i < 8; i++)
-				subVoxels[i].iteraterate(lvl, func_ptr, index);
-		else
-			func_ptr(this, index++);
-	}
-
+	// Function which loops over every block
+	void iteraterate(int lvl, IterationFunction func_ptr, int& index, bool threaded);
 	// Function which recursively calculates the center of all of the sub voxels
 	void calculateCenters();
 	// Function which recursively calculates the visibility of all the subVoxels
@@ -140,8 +176,6 @@ protected:
 class Chunk: public VoxelInstance, public MeshInstance {
 	GODOT_CLASS(Chunk, MeshInstance)
 public:
-	bool loaded = false, rendered = false;
-
 	static void _register_methods(){
         //register_method("_ready", &Chunk::_ready);
 		register_method("initalize", &Chunk::initalize);

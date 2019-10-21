@@ -2,7 +2,7 @@
 
 #include <cmath>
 #include <map>
-#include <functional>
+#include <thread>
 
 #include "SurfFaceEdge.h"
 
@@ -254,6 +254,7 @@ void VoxelInstance::calculateCenters(){
 // Function which recursively calculates the visibility of all the subVoxels
 void VoxelInstance::calculateVisibility(){
     // TODO pass in ChunkMap pointer?
+    #warning check if there is a bug here
     // Distance to the center of the next voxel
     float distance = pow(2, level - 1) * 2;
     // Top
@@ -280,6 +281,16 @@ void VoxelInstance::calculateVisibility(){
             subVoxels[i].calculateVisibility();
 }
 
+// Function which loops over every block
+void VoxelInstance::iteraterate(int lvl, IterationFunction func_ptr, int& index, bool threaded){
+    if(subVoxels && lvl != level)
+        for(int i = 0; i < 8; i++)
+            subVoxels[i].iteraterate(lvl, func_ptr, index);
+    else if(threaded)
+        std::thread(func_ptr, this, index++).detach();
+    else
+        func_ptr(this, index++);
+}
 
 // Debug functions
 int VoxelInstance::count(){
