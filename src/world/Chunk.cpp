@@ -4,7 +4,7 @@
 #include <map>
 #include <thread>
 
-#include "SurfFaceEdge.h"
+#include "../SurfFaceEdge.h"
 
 /*------------------------------------------------------------------------------
         VoxelInstance
@@ -12,7 +12,8 @@
 
 // Copy constructor
 VoxelInstance::VoxelInstance(VoxelInstance& origin){
-    blockData = new BlockData();
+    blockData = BlockDatabase::getSingleton()->getBlock(origin.blockData->blockID);
+    // Make sure the copy has any special values set
     *blockData = *origin.blockData;
 
     flags = origin.flags;
@@ -35,11 +36,12 @@ VoxelInstance::VoxelInstance(VoxelInstance&& origin){
 }
 
 // Function which recursiveley converts an array of blockIDs into an octree
-void VoxelInstance::init(int blocks[], int level /*= SUBCHUNK_LEVELS*/, bool originalCall /*= true*/){
+void VoxelInstance::init(int level /*= SUBCHUNK_LEVELS*/, bool originalCall /*= true*/){
+    static int i = 0;
     this->level = level; // Mark which sublevel this instance is
 
     // If there is data to initalize and we aren't dealing with leaf nodes...
-    if(blocks && level > 0){
+    if(level > 0){
             subVoxels = new VoxelInstance [8]; // Create the next sublevels
 
         // Determine how many blocks are in the source array at this level
@@ -49,17 +51,19 @@ void VoxelInstance::init(int blocks[], int level /*= SUBCHUNK_LEVELS*/, bool ori
         // Distribute the blocks over the child sublevels
         for(int i = 0; i < 8; i++){
             subVoxels[i].parent = this; // Mark this sublevel as the parent of the child sublevels
-            subVoxels[i].init(&blocks[i * (numLeft / 8)], level - 1, false);
+            subVoxels[i].init(level - 1, false);
         }
     // If we are dealing with leaf nodes...
     // TODO: load the block data from some block repository
     } else
-        blockData->blockID = blocks[0];
+        blockData = BlockDatabase::getSingleton()->getBlock(0);
 
     #warning not working?
     // If this was the original call recalculate
-    if(originalCall)
+    if(originalCall){
+        i = 0;
         recalculate();
+    }
 }
 
 // Function which merges sublevels containing all of the same blockID into the same level
@@ -78,11 +82,11 @@ bool VoxelInstance::prune(){
                 uint count;
                 BlockData* d;
         };
-        std::map<uint, CountHolder> m; // Map used to sort blockIDs
+        std::map<Identifier, CountHolder> m; // Map used to sort blockIDs
         // Store the blockIDs sorted by occurence in a map
         for(size_t i = 0; i < 8; i++) {
-            uint key = subVoxels[i].blockData->blockID;
-            std::map<uint, CountHolder>::iterator it = m.find(key);
+            Identifier key = subVoxels[i].blockData->blockID;
+            std::map<Identifier, CountHolder>::iterator it = m.find(key);
             if(it == m.end())
                 m.insert(std::make_pair(key, (CountHolder){1, subVoxels[i].blockData}));
             else
@@ -92,7 +96,9 @@ bool VoxelInstance::prune(){
         for(auto& it: m)
             if(it.second.count > count) {
                 count = it.second.count;
-                // TODO: get from database?
+                if(blockData) delete blockData;
+                // Make sure block data is the correct type
+                blockData = BlockDatabase::getSingleton()->getBlock(it.first);
                 *blockData = *it.second.d;
             }
     } else
@@ -114,12 +120,16 @@ void VoxelInstance::unprune(bool originalCall /*= true*/){
     if(level > 0 && !subVoxels){
         subVoxels = new VoxelInstance [8]; // Create the next sublevels
 
-        // Pass down the blockID to all the new children and unprune them
+        // Pass down the block data to all the new children and unprune them
         for(int i = 0; i < 8; i++){
             subVoxels[i].parent = this;
-            //subVoxels[i].blockID = blockID;
             subVoxels[i].level = level - 1;
+
+            if(subVoxels[i].blockData) delete subVoxels[i].blockData;
+            // Make sure block data is the correct type
+            subVoxels[i].blockData = BlockDatabase::getSingleton()->getBlock(blockData->blockID);
             *subVoxels[i].blockData = *blockData;
+
             subVoxels[i].unprune(false);
         }
     // If we do have children and we aren't at the block level
@@ -137,14 +147,13 @@ void VoxelInstance::unprune(bool originalCall /*= true*/){
 // finds the subvoxel of the requested <lvl> which contains the point
 VoxelInstance* VoxelInstance::find(int lvl, Vector3& position){
     // If we are at the desired level... return a reference to this node
-    if(lvl == level){
+    if(lvl == level)
         return this;
-    }
 
     // If this node has children...
     if(subVoxels){
         for(int i = 0; i < 8; i++){
-            //gout << level << " - " << subVoxels[i].center << " <- " << position << endl;
+            gout << level << " - " << subVoxels[i].center << " <- " << position << endl;
             // Check if each child encloses the search position...
             if(subVoxels[i].within(position))
                 // If it does recursively search into that child
@@ -153,15 +162,15 @@ VoxelInstance* VoxelInstance::find(int lvl, Vector3& position){
     } else
         // If we are at a leaf node... return a reference to this node
         return this;
-    //return nullptr;
-    return this;
+    return nullptr;
+    //return this;
 }
 
 // Function which determines if an arbitrary point in space is within this voxel
 bool VoxelInstance::within(Vector3& position){
     // Calculate the "radius" of the cube based on its level
-    int radius = pow(2, level);
-    if(radius < 1) radius = 1;
+    float radius = pow(2, level - 1);
+    if(radius < .5) radius = .5;
     // Check if the arbitrary point is within those radius
     return !(position.x <= center.x - radius || position.x >= center.x + radius
         || position.y <= center.y - radius || position.y >= center.y + radius
@@ -170,6 +179,8 @@ bool VoxelInstance::within(Vector3& position){
 
 //Function which gets the visible faces from a voxel instance
 void VoxelInstance::getFaces(std::vector<Face>& out){
+    if(blockData->checkFlag(BlockData::INVISIBLE))
+        return;
     // Lambda which determines if the array contains a face
     auto notHas = [out](Face& what){
         for(const Face& f: out)
@@ -180,7 +191,7 @@ void VoxelInstance::getFaces(std::vector<Face>& out){
     auto notHasR = [notHas](Face&& what){ return notHas(what); };
     // variable storing the "radius" of the voxel
     float bounds = pow(2, level - 1);
-    if(checkInstanceFlags(Flags::TOP_VISIBLE)){
+    if(checkFlag(TOP_VISIBLE)){
         Face f = Face(center + Vector3(-bounds, bounds, bounds),
             center + Vector3(bounds, bounds, bounds),
             center + Vector3(bounds, bounds, -bounds),
@@ -188,7 +199,7 @@ void VoxelInstance::getFaces(std::vector<Face>& out){
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
-    if(checkInstanceFlags(Flags::BOTTOM_VISIBLE)){
+    if(checkFlag(BOTTOM_VISIBLE)){
         Face f(center + Vector3(-bounds, -bounds, bounds),
             center + Vector3(bounds, -bounds, bounds),
             center + Vector3(bounds, -bounds, -bounds),
@@ -196,7 +207,7 @@ void VoxelInstance::getFaces(std::vector<Face>& out){
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
-    if(checkInstanceFlags(Flags::NORTH_VISIBLE)){
+    if(checkFlag(NORTH_VISIBLE)){
         Face f(center + Vector3(bounds, -bounds, bounds),
             center + Vector3(bounds, bounds, bounds),
             center + Vector3(bounds, bounds, -bounds),
@@ -204,7 +215,7 @@ void VoxelInstance::getFaces(std::vector<Face>& out){
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
-    if(checkInstanceFlags(Flags::SOUTH_VISIBLE)){
+    if(checkFlag(SOUTH_VISIBLE)){
         Face f = Face(center + Vector3(-bounds, -bounds, bounds),
             center + Vector3(-bounds, bounds, bounds),
             center + Vector3(-bounds, bounds, -bounds),
@@ -212,7 +223,7 @@ void VoxelInstance::getFaces(std::vector<Face>& out){
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
-    if(checkInstanceFlags(Flags::EAST_VISIBLE)){
+    if(checkFlag(EAST_VISIBLE)){
         Face f(center + Vector3(-bounds, bounds, bounds),
             center + Vector3(bounds, bounds, bounds),
             center + Vector3(bounds, -bounds, bounds),
@@ -220,7 +231,7 @@ void VoxelInstance::getFaces(std::vector<Face>& out){
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
-    if(checkInstanceFlags(Flags::WEST_VISIBLE)){
+    if(checkFlag(WEST_VISIBLE)){
         Face f = Face(center + Vector3(-bounds, bounds, -bounds),
             center + Vector3(bounds, bounds, -bounds),
             center + Vector3(bounds, -bounds, -bounds),
@@ -254,27 +265,28 @@ void VoxelInstance::calculateCenters(){
 // Function which recursively calculates the visibility of all the subVoxels
 void VoxelInstance::calculateVisibility(){
     // TODO pass in ChunkMap pointer?
-    #warning check if there is a bug here
+    #warning will be broken until ChunkMap/ChunkMap find is implemented
     // Distance to the center of the next voxel
-    float distance = pow(2, level - 1) * 2;
+    float distance = pow(2, level);
     // Top
-    if(find(level, center + Vector3(0, distance, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
-        flags |= VoxelInstance::Flags::TOP_VISIBLE;
+    // TODO: find returns reference to self, implement chunkmap and use chunkmap find instead
+    if(find(level, center + Vector3(0, distance, 0))->blockData->checkFlag(BlockData::TRANSPARENT))
+        flags |= VoxelInstance::TOP_VISIBLE;
     // Bottom
-    if(find(level, center - Vector3(0, distance, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
-        flags |= VoxelInstance::Flags::BOTTOM_VISIBLE;
+    if(find(level, center + Vector3(0, -distance, 0))->blockData->checkFlag(BlockData::TRANSPARENT))
+        flags |= VoxelInstance::BOTTOM_VISIBLE;
     // North
-    if(find(level, center + Vector3(distance, 0, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
-        flags |= VoxelInstance::Flags::NORTH_VISIBLE;
+    if(find(level, center + Vector3(distance, 0, 0))->blockData->checkFlag(BlockData::TRANSPARENT))
+        flags |= VoxelInstance::NORTH_VISIBLE;
     // South
-    if(find(level, center - Vector3(distance, 0, 0))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
-        flags |= VoxelInstance::Flags::SOUTH_VISIBLE;
+    if(find(level, center + Vector3(-distance, 0, 0))->blockData->checkFlag(BlockData::TRANSPARENT))
+        flags |= VoxelInstance::SOUTH_VISIBLE;
     // East
-    if(find(level, center + Vector3(0, 0, distance))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
-        flags |= VoxelInstance::Flags::EAST_VISIBLE;
+    if(find(level, center + Vector3(0, 0, distance))->blockData->checkFlag(BlockData::TRANSPARENT))
+        flags |= VoxelInstance::EAST_VISIBLE;
     // West
-    if(find(level, center - Vector3(0, 0, distance))->blockData->checkFlags(BlockData::Flags::TRANSPARENT))
-        flags |= VoxelInstance::Flags::WEST_VISIBLE;
+    if(find(level, center + Vector3(0, 0, -distance))->blockData->checkFlag(BlockData::TRANSPARENT))
+        flags |= VoxelInstance::WEST_VISIBLE;
 
     if(subVoxels)
         for(int i = 0; i < 8; i++)
@@ -318,7 +330,7 @@ String to_string(bool what){
 
 String VoxelInstance::dump(){
     String out = copy('\t', SUBCHUNK_LEVELS - level) + to_string(level) + " - " + to_string(blockData->blockID) +
-        " - " + to_string(flags) + " - " + to_string(blockData->checkFlags(BlockData::Flags::TRANSPARENT))+ " - {" + center + "}\n";
+        " - " + to_string(flags) + " - " + to_string(blockData->checkFlag(BlockData::TRANSPARENT))+ " - {" + center + "}\n";
     if(subVoxels)
         for(size_t i = 0; i < 8; i++)
             out += subVoxels[i].dump();

@@ -3,90 +3,60 @@
 #include "Geometry.hpp"
 #include "SurfaceTool.hpp"
 
-#include "gstream/Gstream.hpp"
 #include <iomanip>
 #include <vector>
 #include <fstream>
 
 #include "timer.h"
-#include "Chunk.h"
+#include "godot/Gstream.hpp"
+#include "world/Chunk.h"
+#include "block/BlockDatabase.h"
 
 void SurfaceOptimization::_ready(){
-    /*Face faces[] = { Face(Vector3(1, 0, -1), Vector3(1, 0, 1), Vector3(-1, 0, 1)),
-        Face(Vector3(3, 0, -1), Vector3(3, 0, 1), Vector3(1, 0, 1), Vector3(1, 0, -1)),
-        Face(Vector3(3, 0, 1), Vector3(3, 0, 3), Vector3(1, 0, 3), Vector3(1, 0, 1)),
-        Face(Vector3(1, 0, 1), Vector3(1, 0, 3), Vector3(-1, 0, 3), Vector3(-1, 0, 1)),
-        Face(Vector3(1, 0, 3), Vector3(1, 0, 5), Vector3(-1, 0, 5), Vector3(-1, 0, 3)),
-        Face(Vector3(7, 0, 3), Vector3(7, 0, 5), Vector3(5, 0, 5), Vector3(5, 0, 3), 2),
-        Face(Vector3(5, 0, 3), Vector3(5, 0, 5), Vector3(3, 0, 5), Vector3(3, 0, 3), 2),
-        Face(Vector3(3, 0, 3), Vector3(3, 0, 5), Vector3(1, 0, 5), Vector3(1, 0, 3), 2),
-
-    };
-    // Swap Triangle face for Quad face
-    faces[0] = Face(Vector3(1, 0, -1), Vector3(1, 0, 1), Vector3(-1, 0, 1), Vector3(-1, 0, -1));
-
-    // Nievely construct surface from faces
-    Surface surf;
-    {
-        Timer t;
-        surf.append(faces[0].getSurface());
-        surf.append(faces[1].getSurface());
-        surf.append(faces[2].getSurface());
-        surf.append(faces[3].getSurface());
-        surf.append(faces[4].getSurface());
-        surf.append(faces[5].getSurface());
-        surf.append(faces[6].getSurface());
-        surf.append(faces[7].getSurface());
-    }
-
-    gout << (faces[0].checkContiguiousCoplanar(faces[1]) ? "true" : "false") << std::endl
-        << (faces[4].checkContiguiousCoplanar(faces[1]) ? "true" : "false") << std::endl;
-
-    //surf = Surface::fromContiguousCoplanarFaces(std::vector<Face>(faces, faces + sizeof(faces)/sizeof(faces[0])));
-    {
-        Timer t;
-        surf = Surface::fromFaces(std::vector<Face>(faces, faces + sizeof(faces)/sizeof(faces[0])));
-    }*/
+    gout << BlockDatabase::getSingleton()->getBlock(0)->checkFlag(BlockData::TRANSPARENT) << endl;
+    gout << BlockDatabase::getSingleton()->getBlock(1)->checkFlag(BlockData::TRANSPARENT) << endl;
     {
         Chunk c;
-        c.initalize();
         c.iteraterate(BLOCK_LEVEL, [](VoxelInstance* v, int) {
             //gout << v->center << endl;
             if(v->center.y > 0)
-                v->blockData->blockID = 1;
-            else {
-                v->blockData->blockID = 0;
-                v->blockData->flags |= BlockData::Flags::TRANSPARENT;
-            }
+                v->blockData = BlockDatabase::getSingleton()->getBlock(1);
+            else
+                v->blockData = BlockDatabase::getSingleton()->getBlock(0);
         });
         c.prune();
         c.recalculate();
 
-        std::ofstream os("test.json");
-        cereal::JSONOutputArchive test(os);
-        test(c);
+        std::ofstream os("test.chunk.json", std::ios::binary);
+        //cereal::PortableBinaryOutputArchive test(os);
+        cereal::JSONOutputArchive save(os);
+        save(c);
     }
 
     Surface surf;
+    Chunk c(Chunk::DONT_INTIALIZE);
     {
-        Chunk c;
-
-        std::ifstream is("test.json");
-        cereal::JSONInputArchive test(is);
-        test(c);
+        std::ifstream is("test.chunk.json", std::ios::binary);
+        //cereal::PortableBinaryInputArchive test(is);
+        cereal::JSONInputArchive load(is);
+        load(c);
 
         std::vector<Face> facesArr;
         c.iteraterate(1, [&facesArr](VoxelInstance* me, int) {
             me->getFaces(facesArr);
         });
 
-        for (Face& f: facesArr)
-            surf.append(f.getSurface());
+        if(facesArr.size())
+            for (Face& f: facesArr)
+                surf.append(f.getSurface());
 
         gout << facesArr.size() << " faces" << endl;
     }
 
-    visualizeEdges(surf, surf.norms[0]);
+    gout << c.checkFlag(Chunk::TOP_VISIBLE) << endl;
+    gout << c.blockData->checkFlag(BlockData::INVISIBLE) << " - " << c.blockData->flags << endl;
+
+    //visualizeEdges(surf, surf.norms[0]);
     this->set_mesh(surf.getMesh());
 }
 

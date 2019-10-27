@@ -1,13 +1,12 @@
 #ifndef _SURF_FACE_EDGE_H_
 #define _SURF_FACE_EDGE_H_
-#include "Godot.hpp"
-
-#include "ArrayMesh.hpp"
-#include "MeshInstance.hpp"
-
-#include "gstream/Gstream.hpp"
+#include <ArrayMesh.hpp>
+#include <MeshInstance.hpp>
 
 #include <vector>
+
+#include "godot/Gstream.hpp"
+
 
 // Add ranged based for loop support to PoolVector3Array and PoolIntArray
 namespace godot{

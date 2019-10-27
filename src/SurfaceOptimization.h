@@ -3,7 +3,7 @@
 #include "SurfFaceEdge.h"
 #include "MeshInstance.hpp"
 
-template<class T>
+/*template<class T>
 std::wostream& operator<<(std::wostream& s, std::vector<T>& vect){
     s << "{ ";
     for(T& elem: vect)
@@ -11,7 +11,7 @@ std::wostream& operator<<(std::wostream& s, std::vector<T>& vect){
     s.seekp(-2L, std::ios_base::end);
     s << " }";
     return s;
-}
+}*/
 
 class SurfaceOptimization: public MeshInstance{
     GODOT_CLASS(SurfaceOptimization, MeshInstance)

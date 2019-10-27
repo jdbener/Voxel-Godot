@@ -1,7 +1,7 @@
 #include "SurfFaceEdge.h"
 
-#include "SurfaceTool.hpp"
-#include "Geometry.hpp"
+#include <SurfaceTool.hpp>
+#include <Geometry.hpp>
 
 //#include "timer.h"
 
@@ -126,8 +126,9 @@ ArrayMesh* Surface::getMesh(ArrayMesh* mesh /* = nullptr*/){
 
     Array arrays;
     arrays.resize(Mesh::ArrayType::ARRAY_MAX);
-
-    arrays[Mesh::ArrayType::ARRAY_VERTEX] = verts;
+    
+    if(verts.size() > 0)
+        arrays[Mesh::ArrayType::ARRAY_VERTEX] = verts;
     if (norms.size() > 0)
         arrays[Mesh::ArrayType::ARRAY_NORMAL] = norms;
     if (uvs.size() > 0)
