@@ -23,7 +23,6 @@ public:
     void _init(){}
 
     void _ready();
-    void visualizeEdges(Surface surface, Vector3 normal = Vector3(0, 0, 0));
 };
 
 #endif

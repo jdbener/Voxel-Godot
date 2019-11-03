@@ -126,7 +126,7 @@ ArrayMesh* Surface::getMesh(ArrayMesh* mesh /* = nullptr*/){
 
     Array arrays;
     arrays.resize(Mesh::ArrayType::ARRAY_MAX);
-    
+
     if(verts.size() > 0)
         arrays[Mesh::ArrayType::ARRAY_VERTEX] = verts;
     if (norms.size() > 0)

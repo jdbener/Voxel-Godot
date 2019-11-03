@@ -4,35 +4,57 @@
 #include <vector>
 
 #include "../godot/CerealGodot.h"
+#include "BlockFeatureDatabase.h"
 
 typedef size_t Identifier;
 typedef unsigned short flag_t;
 
 using namespace godot;
 
-class BlockData{//: public Resource {
-	// TODO make BlockData an actual resource which can be loaded off the disk
+class BlockData {
 public:
-	enum Flags{
+	// Variable storing the identification of the block for storage purposes
+	Identifier blockID = 0;
+
+	enum Flags {
+			null = 0,
 			TRANSPARENT = 1,
 			DONT_RENDER = 2,
 			INVISIBLE = 3 // 2 and 1
 	};
+	// Variable storing the flags for this block
 	flag_t flags = 0;
-	Identifier blockID = 0;
+	// Variable storing the loaded features of this block
+	std::map<godot::String, Feature*> features;
 //	godot::Material mat;
 
-    BlockData(flag_t f = 0) : flags(f) {}
-    virtual ~BlockData() {}
+	// Constructer
+    BlockData(flag_t f = Flags::null, const std::initializer_list<godot::String> features = {}) : flags(f) {
+		this->features = BlockFeatureDatabase::getSingleton()->getFeatures(features);
+	}
 
     // Function which compares the provided mask to the bitfield
-	virtual bool checkFlag(Flags mask){
-		return (flags & mask) == mask;
+	bool checkFlag(Flags mask) const { return (flags & mask) == mask; }
+	// Function which checks if a block data instance has features which can't be pruned
+	bool hasUnprunableFeature() {
+		for(auto feature: features)
+			if (!feature.second->pruneable)
+				return true;
+		return false;
 	}
 
 	// Functions which allow blocks to preform some action when their chunk is saved/loaded
-	virtual void save(){ /* Stub */ }
-	virtual void load(){ /* Stub */ }
+	template <class Archive>
+	void save(Archive& archive) const {
+		archive( CEREAL_NVP(flags) ); // Debug
+		for(auto feature: features)
+			archive(cereal::make_nvp(feature.first.utf8().get_data(), *feature.second));
+	}
+	template <class Archive>
+	void load(Archive& archive){
+		for(auto feature: features)
+			archive(cereal::make_nvp(feature.first.utf8().get_data(), *feature.second));
+	}
 };
 
 class BlockDatabase {
@@ -47,11 +69,14 @@ public:
 	// Function which cleans up after the BlockManager
 	~BlockDatabase();
     // Function which adds a block to the database
-    void addBlock(BlockData* d);
+    Identifier addBlock(BlockData* d);
     // Function which gets a copy of one of the blocks in the database
-    BlockData* getBlock(Identifier id);
+    BlockData* getBlock(Identifier id, bool loadFeatures = true);
 };
 
-
+// List of blocks... may remove it this proves unworthy of maintience
+namespace Blocks {
+	static Identifier AIR;
+} // Blocks
 
 #endif // __BLOCK_MANAGER_H__

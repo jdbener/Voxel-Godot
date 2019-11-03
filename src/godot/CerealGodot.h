@@ -7,6 +7,11 @@
 #include <codecvt>
 #include <sstream>
 
+typedef cereal::JSONInputArchive iarchive;
+//typedef PortableBinaryInputArchive GodotInputArchive;
+typedef cereal::JSONOutputArchive oarchive;
+//typedef PortableBinaryOutputArchive GodotOutputArchive;
+
 namespace godot {
     // String (also saves for anything which can be cast to a string)
     template <class Archive>

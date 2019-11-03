@@ -9,20 +9,20 @@ BlockDatabase* BlockDatabase::getSingleton(){
 BlockDatabase::BlockDatabase(){
     // TODO loading blocks from file
     BlockData* air = new BlockData(BlockData::INVISIBLE);
-    addBlock(air);
+    Blocks::AIR = addBlock(air);
 
-    BlockData* debug = new BlockData();
+    BlockData* debug = new BlockData(BlockData::null, {"Orientation"});
     addBlock(debug);
 }
 
-// Function which adds a block to the database
-void BlockDatabase::addBlock(BlockData* d){
+// Function which adds a block to the database, returns ID of the newly added block
+Identifier BlockDatabase::addBlock(BlockData* d){
     blocks.push_back(d);
-    blocks[blocks.size() - 1]->blockID = blocks.size() - 1;
+    return blocks[blocks.size() - 1]->blockID = blocks.size() - 1;
 }
 
 // Function which gets a copy of one of the blocks in the database
-BlockData* BlockDatabase::getBlock(Identifier id){
+BlockData* BlockDatabase::getBlock(Identifier id, bool loadFeatures){
     // If the id is outside of the array... return a nullptr
     if(id > blocks.size()) return nullptr;
 

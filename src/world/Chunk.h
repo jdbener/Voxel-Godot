@@ -9,6 +9,8 @@
 #include "../godot/CerealGodot.h"
 #include "../block/BlockDatabase.h"
 
+#include "../godot/Gstream.hpp"
+
 using namespace godot;
 
 /*
@@ -25,12 +27,16 @@ const int BLOCK_LEVEL = 0;
 
 class VoxelInstance;
 class Face;
+class ChunkMap;
+
+
 typedef std::function<void(VoxelInstance*, int)> IterationFunction;
 
 class VoxelInstance {
 public:
 	enum Flags {
 		/* Surface Visibility */
+		null = 0,
 		TOP_VISIBLE = 1,
 		BOTTOM_VISIBLE = 2,
 		NORTH_VISIBLE = 4,
@@ -41,7 +47,7 @@ public:
 
 	};
 	BlockData* blockData;
-	flag_t flags = 0;
+	flag_t flags = Flags::null;
 
 	//unsigned int blockID = 0;
 	// variable storing which level of subchunk this instance is
@@ -49,9 +55,11 @@ public:
 	Vector3 center = {0, 0, 0};
 
 	VoxelInstance* subVoxels = nullptr;
-	VoxelInstance* parent = nullptr;
+	//VoxelInstance* parent = nullptr;
+	ChunkMap* map = nullptr;
 
-	VoxelInstance(BlockData* data = new BlockData()){
+	VoxelInstance(ChunkMap* map = nullptr, BlockData* data = new BlockData()){
+		this->map = map;
 		this->blockData = data;
 	}
 
@@ -92,9 +100,9 @@ public:
 	}
 
 	//Function which runs the provided function for every instance recursively
-	int iteraterate(int level, IterationFunction func_ptr, bool threaded = false){
+	int iterate(int level, IterationFunction func_ptr, bool threaded = false){
 		int index = 0;
-		iteraterate(level, func_ptr, index, threaded);
+		iterate(level, func_ptr, index, threaded);
 		return index;
 	}
 	// Function which returns true if the proived mask can be found in this instance's flags
@@ -108,14 +116,11 @@ public:
 		// Save instance
 		archive(
 			cereal::make_nvp("blockID", blockData->blockID),
-			cereal::make_nvp("blockFlags", blockData->flags), // Debug
+			cereal::make_nvp("features", *blockData),
 			CEREAL_NVP(flags),
 			CEREAL_NVP(level),
 			CEREAL_NVP(center)
 		);
-
-		// Custom block data saving
-		blockData->save();
 
 		// Save children
 		if(subVoxels){
@@ -126,18 +131,16 @@ public:
 			archive(cereal::make_nvp("hasChildren", false));
 	}
 	template<class Archive>
-	void load(Archive& archive)
-	{
+	void load(Archive& archive) {
 		// Load block data
 		Identifier blockID;
 		archive(cereal::make_nvp("blockID", blockID));
 		if(blockData) delete blockData;
 		blockData = BlockDatabase::getSingleton()->getBlock(blockID);
-		// Custom block data loading
-		blockData->load();
 
 		// Load block instance
 		archive(
+			cereal::make_nvp("features", *blockData),
 			CEREAL_NVP(flags),
 			CEREAL_NVP(level),
 			CEREAL_NVP(center)
@@ -161,7 +164,7 @@ public:
 
 protected:
 	// Function which loops over every block
-	void iteraterate(int lvl, IterationFunction func_ptr, int& index, bool threaded);
+	void iterate(int lvl, IterationFunction func_ptr, int& index, bool threaded);
 	// Function which recursively calculates the center of all of the sub voxels
 	void calculateCenters();
 	// Function which recursively calculates the visibility of all the subVoxels
@@ -176,23 +179,46 @@ public:
         //register_method("_ready", &Chunk::_ready);
 		//register_method("initalize", &Chunk::initalize);
 		register_method("recenter", &Chunk::recenter);
+		register_method("_process", &Chunk::_process);
     }
 
 	static const bool DONT_INTIALIZE = false;
-	Chunk(bool initalize = true){
-		if(initalize) VoxelInstance::init();
-	}
+	Chunk() : VoxelInstance(nullptr) {}
 
 	void _init(){}
+
+	void _process(float delta){
+		// do something here!
+		//gout << delta << endl;
+	}
+
+	void initalize(ChunkMap* map){
+		this->map = map;
+		VoxelInstance::init();
+	}
+
+	// Implemented so that in the future we may generate chunks on the gpu?
+	void loadFromArray(const std::vector<int>& array){
+		if(!map) throw "Chunk Map not found";
+		iterate(BLOCK_LEVEL, [array](VoxelInstance* v, int i){
+			int x = v->center.x + CHUNK_DIMENSIONS / 2;
+			int y = v->center.y + CHUNK_DIMENSIONS / 2;
+			int z = v->center.z + CHUNK_DIMENSIONS / 2;
+
+			int index = x * CHUNK_DIMENSIONS * CHUNK_DIMENSIONS + z * CHUNK_DIMENSIONS + y;
+			v->blockData = BlockDatabase::getSingleton()->getBlock(array[index]);
+		});
+		prune();
+	}
+	void loadFromArray(const std::vector<int>&& array){ loadFromArray(array); }
 
 	void recenter(){
 		center = get_translation();
 		VoxelInstance::calculateCenters();
 	}
 
-	void tick(){
-		// do something here!
-	}
+	void rebuildMesh();
+	void buildWireframe();
 };
 
 #endif // CHUNK_H
