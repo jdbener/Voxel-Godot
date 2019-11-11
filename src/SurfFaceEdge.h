@@ -196,8 +196,9 @@ public:
 
 	// Function used to check if two edges share a point
 	bool sharePoint(const Edge& other) const {
-		if (tail.point == other.tail.point || tail.point == other.tip.point || tip.point == other.tail.point || tip.point == other.tip.point)
-			return true;
+		if(&tail.point && &tip.point && &other.tail.point && &other.tip.point) // confirm the points all have valid memory adresses
+			if(tail.point == other.tail.point || tail.point == other.tip.point || tip.point == other.tail.point || tip.point == other.tip.point)
+				return true;
 		return false;
 	}
 

@@ -2,7 +2,7 @@ CC64=g++ -fPIC -g -std=c++14 -pthread -Igodot-cpp/include -Igodot-cpp/include/co
 
 LIBRARIES =
 
-OBJ = src/godot/gdlink.o src/SurfaceOptimization.o src/SurfFaceEdge.o src/world/Chunk.o src/block/BlockDatabase.o src/block/BlockFeatureDatabase.o
+OBJ = src/godot/gdlink.o src/SurfaceOptimization.o src/SurfFaceEdge.o src/world/Chunk.o src/world/ChunkMap.o src/block/BlockDatabase.o src/block/BlockFeatureDatabase.o
 
 %.o: %.cpp
 	$(CC64) -g -c -o $@ $< -std=c++14 -pthread

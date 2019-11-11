@@ -7,7 +7,6 @@ BlockDatabase* BlockDatabase::getSingleton(){
 
 // Function which adds the built in blocks
 BlockDatabase::BlockDatabase(){
-    // TODO loading blocks from file
     BlockData* air = new BlockData(BlockData::INVISIBLE);
     Blocks::AIR = addBlock(air);
 

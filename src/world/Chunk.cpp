@@ -95,21 +95,21 @@ bool VoxelInstance::prune(){
                 it->second.count++;
 
             // If this subVoxels is unpruneable, mark that we can't prune
-            unpruneableFeatures |= subVoxels[i].blockData->hasUnprunableFeature();
+            unpruneableFeatures = unpruneableFeatures || subVoxels[i].blockData->hasUnprunableFeature();
         }
         // Find the most common blockID in the sublevels and store it as this level's blockID
         Identifier finalID; // Variable storing the blockID which appears most
-        //BlockData* finalData;
+        BlockData* finalData;
         for(auto& it: m)
             if(it.second.count > count) {
                 count = it.second.count;
                 finalID = it.first;
-                //finalData = it.second.d;
+                finalData = it.second.d;
             }
         if(blockData) delete blockData;
         // Make sure block data is the correct type
         blockData = BlockDatabase::getSingleton()->getBlock(finalID);
-        //*blockData = *finalData; // TODO: Overload assignment opperator in BlockData if issues emerge
+        *blockData = *finalData; // TODO: Overload assignment opperator in BlockData if issues emerge
     } else
         return true; // If we have already pruned this branch we are safe to prune higher
 
@@ -186,65 +186,84 @@ bool VoxelInstance::within(Vector3& position){
         || position.z <= center.z - radius || position.z >= center.z + radius);
 }
 
+// Function which gets a single face disregarding visibility
+Face VoxelInstance::getFace(Direction d){
+    // variable storing the "radius" of the voxel
+    float bounds = pow(2, level - 1);
+    switch(d){
+    case TOP:
+        return Face(center + Vector3(-bounds, bounds, bounds),
+            center + Vector3(bounds, bounds, bounds),
+            center + Vector3(bounds, bounds, -bounds),
+            center + Vector3(-bounds, bounds, -bounds), blockData->blockID).reverse();
+    case BOTTOM:
+        return Face(center + Vector3(-bounds, -bounds, bounds),
+            center + Vector3(bounds, -bounds, bounds),
+            center + Vector3(bounds, -bounds, -bounds),
+            center + Vector3(-bounds, -bounds, -bounds), blockData->blockID);
+    case NORTH:
+        return Face(center + Vector3(bounds, -bounds, bounds),
+            center + Vector3(bounds, bounds, bounds),
+            center + Vector3(bounds, bounds, -bounds),
+            center + Vector3(bounds, -bounds, -bounds), blockData->blockID);
+    case SOUTH:
+        return Face(center + Vector3(-bounds, -bounds, bounds),
+            center + Vector3(-bounds, bounds, bounds),
+            center + Vector3(-bounds, bounds, -bounds),
+            center + Vector3(-bounds, -bounds, -bounds), blockData->blockID).reverse();
+    case EAST:
+        return Face(center + Vector3(-bounds, bounds, bounds),
+            center + Vector3(bounds, bounds, bounds),
+            center + Vector3(bounds, -bounds, bounds),
+            center + Vector3(-bounds, -bounds, bounds), blockData->blockID);
+    case WEST:
+        return Face(center + Vector3(-bounds, bounds, -bounds),
+            center + Vector3(bounds, bounds, -bounds),
+            center + Vector3(bounds, -bounds, -bounds),
+            center + Vector3(-bounds, -bounds, -bounds), blockData->blockID).reverse();
+    }
+}
+
+
 //Function which gets the visible faces from a voxel instance
 void VoxelInstance::getFaces(std::vector<Face>& out){
     if(blockData->checkFlag(BlockData::INVISIBLE))
         return;
-    // Lambda which determines if the array contains a face
-    auto notHas = [out](Face& what){
+    // Lambda which determines if the array contains a face already
+    auto notHas = [&out](Face& what){
         for(const Face& f: out)
             if(f == what)
                 return false;
         return true;
     };
     //auto notHasR = [notHas](Face&& what){ return notHas(what); };
-    // variable storing the "radius" of the voxel
-    float bounds = pow(2, level - 1);
     if(checkFlag(TOP_VISIBLE)){
-        Face f = Face(center + Vector3(-bounds, bounds, bounds),
-            center + Vector3(bounds, bounds, bounds),
-            center + Vector3(bounds, bounds, -bounds),
-            center + Vector3(-bounds, bounds, -bounds), blockData->blockID).reverse();
+        Face f = getFace(TOP);
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
     if(checkFlag(BOTTOM_VISIBLE)){
-        Face f(center + Vector3(-bounds, -bounds, bounds),
-            center + Vector3(bounds, -bounds, bounds),
-            center + Vector3(bounds, -bounds, -bounds),
-            center + Vector3(-bounds, -bounds, -bounds), blockData->blockID);
+        Face f = getFace(BOTTOM);
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
     if(checkFlag(NORTH_VISIBLE)){
-        Face f(center + Vector3(bounds, -bounds, bounds),
-            center + Vector3(bounds, bounds, bounds),
-            center + Vector3(bounds, bounds, -bounds),
-            center + Vector3(bounds, -bounds, -bounds), blockData->blockID);
+        Face f = getFace(NORTH);
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
     if(checkFlag(SOUTH_VISIBLE)){
-        Face f = Face(center + Vector3(-bounds, -bounds, bounds),
-            center + Vector3(-bounds, bounds, bounds),
-            center + Vector3(-bounds, bounds, -bounds),
-            center + Vector3(-bounds, -bounds, -bounds), blockData->blockID).reverse();
+        Face f = getFace(SOUTH);
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
     if(checkFlag(EAST_VISIBLE)){
-        Face f(center + Vector3(-bounds, bounds, bounds),
-            center + Vector3(bounds, bounds, bounds),
-            center + Vector3(bounds, -bounds, bounds),
-            center + Vector3(-bounds, -bounds, bounds), blockData->blockID);
+        Face f = getFace(EAST);
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
     if(checkFlag(WEST_VISIBLE)){
-        Face f = Face(center + Vector3(-bounds, bounds, -bounds),
-            center + Vector3(bounds, bounds, -bounds),
-            center + Vector3(bounds, -bounds, -bounds),
-            center + Vector3(-bounds, -bounds, -bounds), blockData->blockID).reverse();
+        Face f = getFace(WEST);
         //if(notHas(f) && notHasR(f.reverse())) out.push_back(f);
         if(notHas(f)) out.push_back(f);
     }
@@ -276,13 +295,15 @@ void VoxelInstance::calculateVisibility(){
     #define setFlag(flag, vector)\
     { VoxelInstance* v = map->find(level, center + vector);\
     if(!v)\
-        /*flags |= flag;*/\
-        flags &= ~flag;\
-    else if(v->blockData->checkFlag(BlockData::TRANSPARENT))\
         flags |= flag;\
+        /*flags = flags & ~flag;*/\
+    else if(v->blockData->checkFlag(BlockData::TRANSPARENT))\
+        flags = flags | flag;\
+    else\
+        flags = flags & ~flag;\
     }
     // Distance to the center of the next voxel
-    float distance = pow(2, level);
+    float distance = pow(2, level) - .01;
     // Top
     setFlag(VoxelInstance::TOP_VISIBLE, Vector3(0, distance, 0));
     // Bottom
@@ -303,11 +324,16 @@ void VoxelInstance::calculateVisibility(){
 
 // Function which loops over every block
 void VoxelInstance::iterate(int lvl, IterationFunction func_ptr, int& index, bool threaded){
+    // If we aren't at the requested level and we can go lower
     if(subVoxels && lvl != level)
         for(int i = 0; i < 8; i++)
-            subVoxels[i].iterate(lvl, func_ptr, index);
+            // Recursively itterate
+            subVoxels[i].iterate(lvl, func_ptr, index, threaded);
+    // If we are running threaded, create a new thread for the function
+    #warning optimize?
     else if(threaded)
         std::thread(func_ptr, this, index++).detach();
+    // Otherwise just call the function
     else
         func_ptr(this, index++);
 }
@@ -349,30 +375,32 @@ String VoxelInstance::dump(){
         Chunk
 ------------------------------------------------------------------------------*/
 
-void Chunk::rebuildMesh(){
+void Chunk::rebuildMesh(int levelOfDetail){
     Surface surf;
     std::vector<Face> facesArr;
-    iterate(BLOCK_LEVEL, [&facesArr](VoxelInstance* me, int) {
+    iterate(levelOfDetail, [&facesArr](VoxelInstance* me, int) {
         me->getFaces(facesArr);
     });
 
     if(facesArr.size())
         for (Face& f: facesArr)
             surf.append(f.getSurface());
+        //surf = Surface::fromContiguousCoplanarFaces(facesArr);
 
     set_mesh(surf.getMesh());
 }
 
-void Chunk::buildWireframe(){
+void Chunk::buildWireframe(int levelOfDetail){
     Surface surf;
     std::vector<Face> facesArr;
-    iterate(BLOCK_LEVEL, [&facesArr](VoxelInstance* me, int) {
+    iterate(levelOfDetail, [&facesArr](VoxelInstance* me, int) {
         me->getFaces(facesArr);
     });
 
     if(facesArr.size())
         for (Face& f: facesArr)
             surf.append(f.getSurface());
+        //surf = Surface::fromContiguousCoplanarFaces(facesArr);
 
     for(int i = 0; i < surf.indecies.size(); i += 3){
     	SurfaceTool* line = SurfaceTool::_new();

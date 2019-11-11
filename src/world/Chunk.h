@@ -8,6 +8,7 @@
 
 #include "../godot/CerealGodot.h"
 #include "../block/BlockDatabase.h"
+#include "../SurfFaceEdge.h"
 
 #include "../godot/Gstream.hpp"
 
@@ -26,10 +27,10 @@ const int SUBCHUNK_LEVELS = log(CHUNK_DIMENSIONS)/log(2); // The maximum number 
 const int BLOCK_LEVEL = 0;
 
 class VoxelInstance;
-class Face;
+//class Face;
 class ChunkMap;
 
-
+enum Direction {NORTH, SOUTH, EAST, WEST, TOP, BOTTOM};
 typedef std::function<void(VoxelInstance*, int)> IterationFunction;
 
 class VoxelInstance {
@@ -86,6 +87,9 @@ public:
 	VoxelInstance* find(int lvl, Vector3&& position) { return find(lvl, position); }
 	// Function which determines if an arbitrary point in space is within this voxel
 	bool within(Vector3& position);
+	bool within(Vector3&& position){ return within(position); }
+	// Function which gets a single face
+	Face getFace(Direction d);
 	//Function which gets the visible faces from a voxel instance
 	void getFaces(std::vector<Face>& out);
 	std::vector<Face> getFaces(){
@@ -200,7 +204,7 @@ public:
 	// Implemented so that in the future we may generate chunks on the gpu?
 	void loadFromArray(const std::vector<int>& array){
 		if(!map) throw "Chunk Map not found";
-		iterate(BLOCK_LEVEL, [array](VoxelInstance* v, int i){
+		iterate(BLOCK_LEVEL, [&array](VoxelInstance* v, int i){
 			int x = v->center.x + CHUNK_DIMENSIONS / 2;
 			int y = v->center.y + CHUNK_DIMENSIONS / 2;
 			int z = v->center.z + CHUNK_DIMENSIONS / 2;
@@ -217,8 +221,39 @@ public:
 		VoxelInstance::calculateCenters();
 	}
 
-	void rebuildMesh();
-	void buildWireframe();
+	std::vector<Face> getLayer(const Direction direction, const int which){
+		std::vector<Face> faces;
+		iterate(BLOCK_LEVEL, [&faces](VoxelInstance* me, int) {
+	        me->getFaces(faces);
+	    });
+
+		auto count = [&faces](Face& what){
+			int count = 0;
+	        for(const Face& f: faces)
+	            if(f == what)
+	                count++;
+	        return count;
+	    };
+
+		std::vector<Face> out;
+		float match = -CHUNK_DIMENSIONS;
+		switch(direction){
+		case TOP:
+			match = center.y + CHUNK_DIMENSIONS / 2 - which;
+		case BOTTOM:
+			if(match == -CHUNK_DIMENSIONS) match = center.y - CHUNK_DIMENSIONS / 2 + which;
+			for(Face& f: faces)
+				if(f.a.point.y == match && f.b.point.y == match && f.c.point.y == match)
+					//#warning hack need to find bug in baked visibility calulations
+					//if(count(f) == 1)
+						out.push_back(f);
+			break;
+		}
+		return out;
+	}
+
+	void rebuildMesh(int levelOfDetail = 0);
+	void buildWireframe(int levelOfDetail = 0);
 };
 
 #endif // CHUNK_H
