@@ -33,20 +33,19 @@ void SurfaceOptimization::_ready(){
         iarchive load(is);
         load(*c);
     }
-    c->rebuildMesh();
-    c->buildWireframe();
+//    c->rebuildMesh();
+//    c->buildWireframe();
 
     gout << String("res://icon.png").get_file() << endl;
 
     Surface surf;
-    //for(int level = 3; level <= 7; level++){
-    int level = 5;
-        std::vector<Face> facesArr = c->getLayer(BOTTOM, level);
+    for(int level = 0; level <= 16; level++){
+        std::vector<Face> facesArr = c->getLayerFaces(NORTH, level);
 
         if(facesArr.size())
             for (Face& f: facesArr)
                 surf.append(f.getSurface());
-    //}
+    }
 
     //visualizeEdges(surf, surf.norms[0]);
     this->set_mesh(surf.getMesh());

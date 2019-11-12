@@ -303,7 +303,7 @@ void VoxelInstance::calculateVisibility(){
         flags = flags & ~flag;\
     }
     // Distance to the center of the next voxel
-    float distance = pow(2, level) - .01;
+    float distance = pow(2, level);
     // Top
     setFlag(VoxelInstance::TOP_VISIBLE, Vector3(0, distance, 0));
     // Bottom
@@ -336,6 +336,69 @@ void VoxelInstance::iterate(int lvl, IterationFunction func_ptr, int& index, boo
     // Otherwise just call the function
     else
         func_ptr(this, index++);
+}
+
+// Function which gets all of the faces in one layer coming from a specified direction
+std::vector<Face> VoxelInstance::getLayerFaces(const Direction direction, const int whichLevel){
+    // Get all of the faces
+    std::vector<Face> faces;
+    iterate(BLOCK_LEVEL, [&faces](VoxelInstance* v, int) {
+        v->getFaces(faces);
+    });
+
+    // Variable storing the eventual output
+    std::vector<Face> out;
+
+    // Variable storing the coordinate in world space to compare verticies too
+    float match;
+    // Variable storing the desired normal of all of the faces
+    Vector3 normal;
+    // Calculate the values for <normal> and <match>
+    switch (direction){
+    case TOP:
+        match = center.y + CHUNK_DIMENSIONS / 2 - whichLevel;
+        normal = Vector3(0, 1, 0);
+        break;
+    case BOTTOM:
+        match = center.y - CHUNK_DIMENSIONS / 2 + whichLevel;
+        normal = Vector3(0, -1, 0);
+        break;
+    case NORTH:
+        match = center.x + CHUNK_DIMENSIONS / 2 - whichLevel;
+        normal = Vector3(1, 0, 0);
+        break;
+    case SOUTH:
+        match = center.x - CHUNK_DIMENSIONS / 2 + whichLevel;
+        normal = Vector3(-1, 0, 0);
+        break;
+    case EAST:
+        match = center.z + CHUNK_DIMENSIONS / 2 - whichLevel;
+        normal = Vector3(0, 0, 1);
+        break;
+    case WEST:
+        match = center.z - CHUNK_DIMENSIONS / 2 + whichLevel;
+        normal = Vector3(0, 0, -1);
+        break;
+    }
+
+    #define check(axis)\
+        /* For each face */\
+        for(Face& f: faces)\
+            /* Check if three of it's points are in the plane (assuming square faces don't oddly tilt one verticie) */\
+            if(f.a.point.axis == match && f.b.point.axis == match && f.c.point.axis == match)\
+                /* Check if the face is oriented in the correct direction */\
+                if(f.normal == normal)\
+                    out.push_back(f)
+
+    // Add all of the faces in the desired plane with the correct orientation to the output...
+    if(direction == NORTH || direction == SOUTH) {
+        check(x);
+    } else if(direction == TOP || direction == BOTTOM) {
+        check(y);
+    } else if(direction == EAST || direction == WEST)
+        check(z);
+    // Return the layer
+    return out;
 }
 
 // Debug functions
@@ -374,7 +437,7 @@ String VoxelInstance::dump(){
 /*------------------------------------------------------------------------------
         Chunk
 ------------------------------------------------------------------------------*/
-
+// Function which rebuild's the chunk's mesh at the desired <levelOfDetail>
 void Chunk::rebuildMesh(int levelOfDetail){
     Surface surf;
     std::vector<Face> facesArr;
@@ -390,6 +453,7 @@ void Chunk::rebuildMesh(int levelOfDetail){
     set_mesh(surf.getMesh());
 }
 
+// Function which computes a wireframe version of the mesh
 void Chunk::buildWireframe(int levelOfDetail){
     Surface surf;
     std::vector<Face> facesArr;

@@ -17,6 +17,7 @@ remake: clean build
 
 run:
 	echo "Built sucessfully"
+	godot
 
 src/world/Chunk.o : src/world/Chunk.h src/SurfFaceEdge.h
 src/godot/gdlink.o: src/world/Chunk.h src/SurfaceOptimization.h

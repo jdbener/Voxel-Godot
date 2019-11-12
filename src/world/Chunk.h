@@ -103,6 +103,9 @@ public:
 		calculateVisibility();
 	}
 
+	// Function which gets all of the faces in one layer coming from a specified direction
+	std::vector<Face> getLayerFaces(const Direction direction, const int whichLevel);
+
 	//Function which runs the provided function for every instance recursively
 	int iterate(int level, IterationFunction func_ptr, bool threaded = false){
 		int index = 0;
@@ -219,37 +222,6 @@ public:
 	void recenter(){
 		center = get_translation();
 		VoxelInstance::calculateCenters();
-	}
-
-	std::vector<Face> getLayer(const Direction direction, const int which){
-		std::vector<Face> faces;
-		iterate(BLOCK_LEVEL, [&faces](VoxelInstance* me, int) {
-	        me->getFaces(faces);
-	    });
-
-		auto count = [&faces](Face& what){
-			int count = 0;
-	        for(const Face& f: faces)
-	            if(f == what)
-	                count++;
-	        return count;
-	    };
-
-		std::vector<Face> out;
-		float match = -CHUNK_DIMENSIONS;
-		switch(direction){
-		case TOP:
-			match = center.y + CHUNK_DIMENSIONS / 2 - which;
-		case BOTTOM:
-			if(match == -CHUNK_DIMENSIONS) match = center.y - CHUNK_DIMENSIONS / 2 + which;
-			for(Face& f: faces)
-				if(f.a.point.y == match && f.b.point.y == match && f.c.point.y == match)
-					//#warning hack need to find bug in baked visibility calulations
-					//if(count(f) == 1)
-						out.push_back(f);
-			break;
-		}
-		return out;
 	}
 
 	void rebuildMesh(int levelOfDetail = 0);
