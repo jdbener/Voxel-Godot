@@ -38,16 +38,19 @@ void SurfaceOptimization::_ready(){
 
     gout << String("res://icon.png").get_file() << endl;
 
+	int level = 0;
+	std::vector<Face> faces = c->getLayerFaces(BOTTOM, level);
+	gout << faces.size() << endl;
     Surface surf;
-    for(int level = 0; level <= 16; level++){
-        std::vector<Face> facesArr = c->getLayerFaces(NORTH, level);
+    //for(int level = 0; level <= 16; level++){
+        surf += Surface::GreedyMeshLayer(faces, BOTTOM, Vector3(0, 0, 0));
+    //}
 
-        if(facesArr.size())
-            for (Face& f: facesArr)
-                surf.append(f.getSurface());
-    }
-
-    //visualizeEdges(surf, surf.norms[0]);
-    this->set_mesh(surf.getMesh());
+    this->add_child(surf.getWireframe());
+	Surface s2;
+	if(faces.size())
+		for (Face& f: faces)
+			s2.append(f.getSurface());
+    this->set_mesh(s2.getMesh());
     add_child(c, true);
 }

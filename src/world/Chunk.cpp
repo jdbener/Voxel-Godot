@@ -466,18 +466,5 @@ void Chunk::buildWireframe(int levelOfDetail){
             surf.append(f.getSurface());
         //surf = Surface::fromContiguousCoplanarFaces(facesArr);
 
-    for(int i = 0; i < surf.indecies.size(); i += 3){
-    	SurfaceTool* line = SurfaceTool::_new();
-    	Vector3 normal = surf.norms[surf.indecies[i]].normalized() / 10000;
-        line->begin(Mesh::PRIMITIVE_LINES);
-        line->add_vertex(surf.verts.read()[surf.indecies.read()[i]] + normal);
-        line->add_vertex(surf.verts.read()[surf.indecies.read()[i + 1]] + normal);
-        line->add_vertex(surf.verts.read()[surf.indecies.read()[i + 1]] + normal);
-        line->add_vertex(surf.verts.read()[surf.indecies.read()[i + 2]] + normal);
-        line->add_vertex(surf.verts.read()[surf.indecies.read()[i + 2]] + normal);
-        line->add_vertex(surf.verts.read()[surf.indecies.read()[i]] + normal);
-        MeshInstance* instance = MeshInstance::_new();
-        instance->set_mesh(line->commit());
-        this->add_child(instance);
-    }
+    this->add_child(surf.getWireframe());
 }

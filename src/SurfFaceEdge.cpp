@@ -3,6 +3,9 @@
 #include <SurfaceTool.hpp>
 #include <Geometry.hpp>
 
+#include <algorithm>
+#include <iomanip>
+
 //#include "timer.h"
 
 /*------------------------
@@ -111,7 +114,7 @@ public:
     size_t size(){
         size_t count = 0;
         Node* current = start;
-        if(current) while(current = current->next) count++;
+        if(current) while((current = current->next)) count++;
         return count;
     }
 };
@@ -159,111 +162,177 @@ void Surface::append(Surface& other){
 }
 
 // Constructs a surface from a list of contiguous, coplanar, faces
-Surface Surface::fromContiguousCoplanarFaces(std::vector<Face> faces){
-    // Don't spend resources if the vector only contains one face
-    if(faces.size() == 1)
-        return faces[0].getSurface();
+Surface Surface::GreedyMeshLayer(std::vector<Face> faces, Direction dir, Vector3 center){
+	const int CHUNK_DIMENSIONS = 16;
+	struct Quad { float x, y, w, h; int blockID, i = -1; };
 
-    // Make list of edges
-    std::vector<Edge> edges;
-    for (Face& face: faces)
-        for (Edge& edge: face.getOutlineEdges())
-            edges.push_back(edge);
+	// Surface storing the optimized layer
+	Surface out;
 
-    // Remove interior Edges
-    RemoveList<Edge> borderEdges; // RemoveList saves ~10-20μs
-    // Lambda counting the number of times each edge occures
-    auto edgeOccurences = [edges](Edge& what){
-        int occurences = 0;
-        for(const Edge& edge: edges)
-            if (edge == what)
-                occurences += 1;
-        return occurences;
-    };
-    for (Edge& edge: edges)
-        // An edge is a border edge only if it occures once (no other faces share the egde)
-        if (edgeOccurences(edge) == 1)
-            borderEdges.push_back(&edge);
+	// Convert the faces into 2D quads
+	std::vector<Quad> maskQuads; // Variable storing the flatened faces
 
-    if(!borderEdges.size())
-        return Surface();
+	// Reduce the faces to their 2D representation
+	#define reduce(first, second) for(Face& f: faces)\
+		if(f.type == Face::Type::QUAD){\
+			/* Make a quad with the top corner at the first point */\
+			Quad q = {f.a.point.first - center.first, f.a.point.second - center.second,\
+				f.c.point.first - f.a.point.first, f.c.point.second - f.a.point.second, f.blockID};\
+			/* move the first point of the quad so that w and h are always positive */\
+			if(q.w < 0) { q.x = f.c.point.first - center.first; q.w = std::abs(q.w); }\
+			if(q.h < 0) { q.y = f.c.point.second - center.second; q.h = std::abs(q.h); }\
+			maskQuads.push_back(q);\
+		/* Triangular faces are passed straight out without being optimized */\
+		} else\
+			out += f.getSurface();
+	switch(dir){
+	case TOP: reduce(x, z); break;
+	case BOTTOM: reduce(x, z); break;
+	case NORTH: reduce(y, z); break;
+	case SOUTH: reduce(y, z); break;
+	case EAST: reduce(x, y); break;
+	case WEST: reduce(x, y); break;
+	}
 
-    // Sort edges
-    std::vector<Edge*> sortedBorderEdges(borderEdges.size());
-    sortedBorderEdges[0] = borderEdges.start->data;
-    borderEdges.start->remove();
-    for (int i = 1; i < sortedBorderEdges.size(); i++){
-        for (auto edge = borderEdges.start; edge; edge = edge->next)
-            if (edge->data->sharePoint(*sortedBorderEdges[i - 1]) && !(*edge->data == *sortedBorderEdges[i - 1])){
-                sortedBorderEdges[i] = edge->data;
-                edge->remove();
-                break;
-            }
-    }
+	/*std::sort(quads.begin(), quads.end(), [](const Quad& a, const Quad& b) -> bool {
+        if ( a.y != b.y )   return a.y < b.y;
+        if ( a.x != b.x )   return a.x < b.x;
+        if ( a.w != b.w )   return a.w > b.w;
+        return a.h >= b.h;
+	});
+	for(int i = 0; i < quads.size(); i++)
+		quads[i].i = i;*/
 
-    Surface surf;
-    // Extract verticies, removing those breaking straight edges
-    for (int i = 0; i < sortedBorderEdges.size(); i++){
-        bool keep = false;
-        // Keep the edge if the vertex of the previous edge is not colinear to this edge
-        if (i > 0){
-            if (sortedBorderEdges[i - 1]->direction().normalized() != sortedBorderEdges[i]->direction().normalized())
-                keep = true;
-        // For the first vertex, we assume a closed loop so the previous edge is the last edge
-        } else if (sortedBorderEdges[sortedBorderEdges.size() - 1]->direction().normalized() != sortedBorderEdges[i]->direction().normalized())
-                keep = true;
-        // If we are keeping the edge... extract the vertex
-        if (keep){
-            surf.verts.push_back(sortedBorderEdges[i]->tail);
-            surf.norms.push_back(faces[0].normal);
-        }
-    }
+	// If there are any faces to be optimized
+	if(maskQuads.size()){
+		// Function which determines if a point is inside a quad
+		auto withinQuad = [](const Quad& q, float x, float y){
+			if(x >= q.x && x < q.x + q.w
+			  && y >= q.y && y < q.y + q.h)
+				return true;
+			return false;
+		};
 
-    // Flatten all of the vertecies in 3D space and drop their normal facing component
-    // This is required since the built in triangulation algorithm only works in 2D space
-    Basis transform = Basis(faces[0].b.point - faces[0].a.point, faces[0].normal, faces[0].c.point - faces[0].a.point);
-    PoolVector2Array triangulationPoints;
-    for (Vector3 p: surf.verts){
-        p = transform.xform_inv(p);
-        triangulationPoints.push_back(Vector2(p.x, p.z));
-    }
+		// Compute the mask
+		int mask[CHUNK_DIMENSIONS * CHUNK_DIMENSIONS];
+		bool found;
+		for(int x = 0; x < CHUNK_DIMENSIONS; x++){
+			for(int y = 0; y < CHUNK_DIMENSIONS; y++){
+				found = false;
+				for(Quad& q: maskQuads)
+					if(withinQuad(q, x - 8, y - 8)){
+						mask[x * CHUNK_DIMENSIONS + y] = q.blockID;
+						found = true;
+						break;
+					}
+				if(!found)
+					mask[x * CHUNK_DIMENSIONS + y] = -1;
+			}
+		}
 
-    // Triangulate the surface based on the reprojected points
-    surf.indecies = Geometry::get_singleton()->triangulate_polygon(triangulationPoints);
-    // Try when 3.2 comes out:
-    // surf.indecies = Geometry::get_singleton()->triangulate_delaunay_2d(triangulationPoints);
-    return surf;
+		// Generate Mesh
+		// Code from: https://github.com/roboleary/GreedyMesh/blob/master/src/mygame/Main.java
+		//std::vector<Quad> output;
+		int n = 0, w, h;
+	    for(int y = 0; y < CHUNK_DIMENSIONS; y++) {
+	        for(int x = 0; x < CHUNK_DIMENSIONS;) {
+	            if(mask[n] != -1) {
+					// We compute the width
+	                for(w = 1; x + w < CHUNK_DIMENSIONS && mask[n + w] != -1 && mask[n + w] == mask[n]; w++) {}
+
+	                // Then we compute height
+	                bool done = false;
+	                for(h = 1; y + h < CHUNK_DIMENSIONS; h++) {
+	                    for(int k = 0; k < w; k++)
+	                        if(mask[n + k + h * CHUNK_DIMENSIONS] == -1 || mask[n + k + h * CHUNK_DIMENSIONS] != mask[n]) { done = true; break; }
+	                    if(done) break;
+	                }
+
+					// Compute face
+					switch(dir){
+					case TOP:
+						out += Face(Vector3(y - 8, 0, x - 8) + center,
+								Vector3(y - 8 + h, 0, x - 8) + center,
+								Vector3(y - 8 + h, 0, x - 8 + w) + center,
+								Vector3(y - 8, 0, x - 8 + w) + center, mask[n]).getSurface();
+						break;
+					case BOTTOM:
+						out += Face(Vector3(y - 8, 0, x - 8) + center,
+								Vector3(y - 8 + h, 0, x - 8) + center,
+								Vector3(y - 8 + h, 0, x - 8 + w) + center,
+								Vector3(y - 8, 0, x - 8 + w) + center, mask[n]).reverse().getSurface();
+						break;
+					#warning not building mesh for other orientations
+					}
+					//output.push_back({(float) y, (float) x, (float) h, (float) w, mask[n]}); // names were messed up so fixing the order here
+					//gout << "(" << y << ", " << x << ") sized " << h << "x" << w << endl;
+
+	                // We zero out the mask
+	                for(int l = 0; l < h; ++l)
+	                    for(int k = 0; k < w; ++k)
+							mask[n + k + l * CHUNK_DIMENSIONS] = -1;
+
+	                // And then finally increment the counters and continue
+	                x += w;
+	                n += w;
+
+	            } else {
+					// Simply increment the counters
+					x++;
+					n++;
+	            }
+	        }
+	    }
+
+		/*for(int x = 0; x < CHUNK_DIMENSIONS; x++){
+			for(int y = 0; y < CHUNK_DIMENSIONS; y++){
+				found = false;
+				for(Quad& q: output)
+					if(within(q, x - 8, y - 8)){
+						gout << std::setw(4) << q.i;
+						found = true;
+						break;
+					}
+				if(!found)
+					gout << std::setw(4) << '.';
+			}
+			gout << endl;
+		}*/
+
+		//gout << output.size() << endl;
+
+		//for(Quad& q: output){
+		//	q.x -= 8; q.y -= 8;
+		//	out
+		//}
+	}
+	return out;
+
+	/*Surface out;
+	if(faces.size())
+		for (Face& f: faces)
+			out.append(f.getSurface());
+	return out;*/
 }
 
-// Constructs a surface from an arbitrary list of faces
-Surface Surface::fromFaces(std::vector<Face> _faces){
-    Surface out;
-    // Convert the input to a removal optimized linked list
-    RemoveList<Face> faces(&_faces.front(), &_faces.back());
-    auto face = faces.start;
-    // For every input face...
-    while(face){
-        // Create a vector storing all of the faces contiguous to this face
-        std::vector<Face> contiguous = {*face};
-        // For every other face...
-        for(auto faceCompare = face->next; faceCompare; faceCompare = faceCompare->next)
-            // Check if this face is contiguous to one of our current faces of the same type
-            for(Face& confirmedFace: contiguous){
-                if(confirmedFace.checkContiguiousCoplanar(*faceCompare) && confirmedFace.checkType(*faceCompare)){
-                    // If so add it to the vector
-                    contiguous.push_back(*faceCompare);
-                    // And remove it from the input set
-                    faceCompare->remove();
-                    break;
-                }
-            }
-
-        // Remove the original face from the input
-        face = face->remove();
-        // Construct the contiguous surface and add it to the current one
-        out.append(Surface::fromContiguousCoplanarFaces(contiguous));
-    }
-    return out;
+// Converts the surface into a wireframe representation
+Spatial* Surface::getWireframe(){
+	Spatial* out = Spatial::_new();
+	for(int i = 0; i < indecies.size(); i += 3){
+		SurfaceTool* line = SurfaceTool::_new();
+		Vector3 normal = norms[indecies[i]].normalized() / 10000;
+		line->begin(Mesh::PRIMITIVE_LINES);
+		line->add_vertex(verts.read()[indecies.read()[i]] + normal);
+		line->add_vertex(verts.read()[indecies.read()[i + 1]] + normal);
+		line->add_vertex(verts.read()[indecies.read()[i + 1]] + normal);
+		line->add_vertex(verts.read()[indecies.read()[i + 2]] + normal);
+		line->add_vertex(verts.read()[indecies.read()[i + 2]] + normal);
+		line->add_vertex(verts.read()[indecies.read()[i]] + normal);
+		MeshInstance* instance = MeshInstance::_new();
+		instance->set_mesh(line->commit());
+		out->add_child(instance);
+	}
+	return out;
 }
 
 /*------------------------

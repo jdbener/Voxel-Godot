@@ -7,6 +7,7 @@
 
 #include "godot/Gstream.hpp"
 
+enum Direction {NORTH, SOUTH, EAST, WEST, TOP, BOTTOM};
 
 // Add ranged based for loop support to PoolVector3Array and PoolIntArray
 namespace godot{
@@ -59,16 +60,16 @@ public:
 
 	// Adds another surface to this one
 	void append(Surface& other);
-	void append(Surface&& other){
-		append(other);
-	}
+	void append(Surface&& other){ append(other); }
+	Surface& operator +=(Surface& other){ this->append(other); return *this; }
+	Surface& operator +=(Surface&& other) {return *this += other; }
 
 	// Constructs a surface from a list of contiguous, coplanar, faces
-	static Surface fromContiguousCoplanarFaces(std::vector<Face> faces);
-	// Constructs a surface from an arbitrary list of faces
-	static Surface fromFaces(std::vector<Face> faces);
+	static Surface GreedyMeshLayer(std::vector<Face> faces, Direction dir, Vector3 center);
 	// Converts the surface into a mesh
 	ArrayMesh* getMesh(ArrayMesh* mesh = nullptr);
+	// Converts the surface into a wireframe representation
+	Spatial* getWireframe();
 };
 
 class Face{

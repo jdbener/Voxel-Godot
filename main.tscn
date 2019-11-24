@@ -19,6 +19,7 @@ script = ExtResource( 1 )
 transform = Transform( 1, 0, 0, 0, 0.973798, 0.227416, 0, -0.227416, 0.973798, 0, 1.23338, 4.96545 )
 script = ExtResource( 2 )
 privot = NodePath("../MeshInstance")
+distance = 30.0
 
 [node name="DirectionalLight" type="DirectionalLight" parent="."]
 transform = Transform( -0.85857, 0.0718432, 0.507639, 0.512694, 0.123837, 0.849594, -0.00182666, 0.989698, -0.143156, 0, 0, 0 )

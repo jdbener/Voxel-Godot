@@ -30,7 +30,6 @@ class VoxelInstance;
 //class Face;
 class ChunkMap;
 
-enum Direction {NORTH, SOUTH, EAST, WEST, TOP, BOTTOM};
 typedef std::function<void(VoxelInstance*, int)> IterationFunction;
 
 class VoxelInstance {
