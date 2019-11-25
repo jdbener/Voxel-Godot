@@ -103,7 +103,8 @@ public:
 	}
 
 	// Function which gets all of the faces in one layer coming from a specified direction
-	std::vector<Face> getLayerFaces(const Direction direction, const int whichLevel);
+	std::vector<Face> getLayerFaces(const Direction direction, const int whichLevel, const int levelOfDetail = 0);
+	std::vector<Face> getLayerFaces(const Direction direction, const int whichLevel, const std::vector<Face>& faces);
 
 	//Function which runs the provided function for every instance recursively
 	int iterate(int level, IterationFunction func_ptr, bool threaded = false){
@@ -224,7 +225,8 @@ public:
 	}
 
 	void rebuildMesh(int levelOfDetail = 0);
-	void buildWireframe(int levelOfDetail = 0);
+	void buildOptimizedMesh(int levelOfDetail = 0);
+	void buildWireframe();
 };
 
 #endif // CHUNK_H

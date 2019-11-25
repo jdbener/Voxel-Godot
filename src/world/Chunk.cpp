@@ -9,7 +9,7 @@
 #include "../SurfFaceEdge.h"
 #include "ChunkMap.h"
 
-//#include "../timer.h"
+#include "../timer.h"
 
 /*------------------------------------------------------------------------------
         VoxelInstance
@@ -222,6 +222,7 @@ Face VoxelInstance::getFace(Direction d){
             center + Vector3(bounds, -bounds, -bounds),
             center + Vector3(-bounds, -bounds, -bounds), blockData->blockID).reverse();
     }
+	return Face({0, 0, 0}, {0, 0, 0}, {0, 0, 0});
 }
 
 
@@ -338,14 +339,19 @@ void VoxelInstance::iterate(int lvl, IterationFunction func_ptr, int& index, boo
         func_ptr(this, index++);
 }
 
-// Function which gets all of the faces in one layer coming from a specified direction
-std::vector<Face> VoxelInstance::getLayerFaces(const Direction direction, const int whichLevel){
-    // Get all of the faces
+// Function which gets all of the faces in one layer coming from a specified direction (builds the face array internally)
+std::vector<Face> VoxelInstance::getLayerFaces(const Direction direction, const int whichLevel, const int levelOfDetail){
+	// Get all of the faces
     std::vector<Face> faces;
-    iterate(BLOCK_LEVEL, [&faces](VoxelInstance* v, int) {
+    iterate(levelOfDetail, [&faces](VoxelInstance* v, int) {
         v->getFaces(faces);
     });
 
+	return getLayerFaces(direction, whichLevel, levelOfDetail);
+}
+
+// Function which gets all of the faces in one layer coming from a specified direction
+std::vector<Face> VoxelInstance::getLayerFaces(const Direction direction, const int whichLevel, const std::vector<Face>& faces){
     // Variable storing the eventual output
     std::vector<Face> out;
 
@@ -383,7 +389,7 @@ std::vector<Face> VoxelInstance::getLayerFaces(const Direction direction, const 
 
     #define check(axis)\
         /* For each face */\
-        for(Face& f: faces)\
+        for(const Face& f: faces)\
             /* Check if three of it's points are in the plane (assuming square faces don't oddly tilt one verticie) */\
             if(f.a.point.axis == match && f.b.point.axis == match && f.c.point.axis == match)\
                 /* Check if the face is oriented in the correct direction */\
@@ -439,8 +445,9 @@ String VoxelInstance::dump(){
 ------------------------------------------------------------------------------*/
 // Function which rebuild's the chunk's mesh at the desired <levelOfDetail>
 void Chunk::rebuildMesh(int levelOfDetail){
-    Surface surf;
-    std::vector<Face> facesArr;
+	Timer t;
+	Surface surf;
+	std::vector<Face> facesArr;
     iterate(levelOfDetail, [&facesArr](VoxelInstance* me, int) {
         me->getFaces(facesArr);
     });
@@ -448,23 +455,57 @@ void Chunk::rebuildMesh(int levelOfDetail){
     if(facesArr.size())
         for (Face& f: facesArr)
             surf.append(f.getSurface());
-        //surf = Surface::fromContiguousCoplanarFaces(facesArr);
+        //surf = Surface::fromContiguousCoplanarFaces(facesArr);*/
 
     set_mesh(surf.getMesh());
+	// TODO: be careful since block updates may cause issues with this system
+	// Create a new thread to create an optimzed mesh
+	std::thread(&Chunk::buildOptimizedMesh, this, levelOfDetail).detach();
+}
+
+// Function which creates an greedily optimized version of the mesh
+void Chunk::buildOptimizedMesh(int levelOfDetail){
+	Timer t;
+	// Get all of the faces
+    std::vector<Face> faces;
+    iterate(levelOfDetail, [&faces](VoxelInstance* v, int) {
+        v->getFaces(faces);
+    });
+
+	// Build the faces for each direction
+	Surface surf;
+	for(int d = Direction::NORTH; d <= Direction::BOTTOM; d++)
+		// Go through all the layers of the chunk
+		for(int level = 0; level < CHUNK_DIMENSIONS; level++){
+			// Calculate the center of this layer
+			Vector3 layerCenter = center;
+			if(d == Direction::TOP)
+				layerCenter -= Vector3(0, level - CHUNK_DIMENSIONS / 2, 0);
+			else if(d == Direction::BOTTOM)
+				layerCenter += Vector3(0, level - CHUNK_DIMENSIONS / 2, 0);
+			else if(d == Direction::NORTH)
+				layerCenter -= Vector3(level - CHUNK_DIMENSIONS / 2, 0, 0);
+			else if(d == Direction::SOUTH)
+				layerCenter += Vector3(level - CHUNK_DIMENSIONS / 2, 0, 0);
+			else if(d == Direction::EAST)
+				layerCenter -= Vector3(0, 0, level - CHUNK_DIMENSIONS / 2);
+			else if(d == Direction::WEST)
+				layerCenter += Vector3(0, 0, level - CHUNK_DIMENSIONS / 2);
+			// Use the greedy meshing algorithm to simplify the layer's mesh
+			surf += Surface::GreedyMeshCoplanar(getLayerFaces((Direction) d, level, faces), (Direction) d, layerCenter);
+		}
+	set_mesh(surf.getMesh());
+	gout << "optimized to "  << get_mesh()->get_faces().size() / 3 << " faces" << endl;
+	buildWireframe();
 }
 
 // Function which computes a wireframe version of the mesh
-void Chunk::buildWireframe(int levelOfDetail){
-    Surface surf;
-    std::vector<Face> facesArr;
-    iterate(levelOfDetail, [&facesArr](VoxelInstance* me, int) {
-        me->getFaces(facesArr);
-    });
+void Chunk::buildWireframe(){
+	Surface surf;
+	PoolVector3Array verts = get_mesh()->get_faces();
+	for(int i = 0; i < verts.size(); i += 3)
+		surf += Face(verts[i], verts[i + 1], verts[i + 2]).getSurface();
 
-    if(facesArr.size())
-        for (Face& f: facesArr)
-            surf.append(f.getSurface());
-        //surf = Surface::fromContiguousCoplanarFaces(facesArr);
-
-    this->add_child(surf.getWireframe());
+	if(has_node("Wireframe")) get_node("Wireframe")->queue_free();
+    add_child(surf.getWireframe());
 }

@@ -162,7 +162,7 @@ void Surface::append(Surface& other){
 }
 
 // Constructs a surface from a list of contiguous, coplanar, faces
-Surface Surface::GreedyMeshLayer(std::vector<Face> faces, Direction dir, Vector3 center){
+Surface Surface::GreedyMeshCoplanar(std::vector<Face> faces, Direction dir, Vector3 center){
 	const int CHUNK_DIMENSIONS = 16;
 	struct Quad { float x, y, w, h; int blockID, i = -1; };
 
@@ -186,22 +186,13 @@ Surface Surface::GreedyMeshLayer(std::vector<Face> faces, Direction dir, Vector3
 		} else\
 			out += f.getSurface();
 	switch(dir){
-	case TOP: reduce(x, z); break;
+	case TOP:
 	case BOTTOM: reduce(x, z); break;
-	case NORTH: reduce(y, z); break;
+	case NORTH:
 	case SOUTH: reduce(y, z); break;
-	case EAST: reduce(x, y); break;
+	case EAST:
 	case WEST: reduce(x, y); break;
 	}
-
-	/*std::sort(quads.begin(), quads.end(), [](const Quad& a, const Quad& b) -> bool {
-        if ( a.y != b.y )   return a.y < b.y;
-        if ( a.x != b.x )   return a.x < b.x;
-        if ( a.w != b.w )   return a.w > b.w;
-        return a.h >= b.h;
-	});
-	for(int i = 0; i < quads.size(); i++)
-		quads[i].i = i;*/
 
 	// If there are any faces to be optimized
 	if(maskQuads.size()){
@@ -232,8 +223,8 @@ Surface Surface::GreedyMeshLayer(std::vector<Face> faces, Direction dir, Vector3
 
 		// Generate Mesh
 		// Code from: https://github.com/roboleary/GreedyMesh/blob/master/src/mygame/Main.java
-		//std::vector<Quad> output;
 		int n = 0, w, h;
+		// TODO:? potentialy do this 4 times coming from each corner and use the mesh with the least number of faces
 	    for(int y = 0; y < CHUNK_DIMENSIONS; y++) {
 	        for(int x = 0; x < CHUNK_DIMENSIONS;) {
 	            if(mask[n] != -1) {
@@ -262,10 +253,31 @@ Surface Surface::GreedyMeshLayer(std::vector<Face> faces, Direction dir, Vector3
 								Vector3(y - 8 + h, 0, x - 8 + w) + center,
 								Vector3(y - 8, 0, x - 8 + w) + center, mask[n]).reverse().getSurface();
 						break;
-					#warning not building mesh for other orientations
+					case NORTH:
+						out += Face(Vector3(0, y - 8,  x - 8) + center,
+								Vector3(0, y - 8 + h,  x - 8) + center,
+								Vector3(0, y - 8 + h,  x - 8 + w) + center,
+								Vector3(0, y - 8,  x - 8 + w) + center, mask[n]).reverse().getSurface();
+						break;
+					case SOUTH:
+						out += Face(Vector3(0, y - 8,  x - 8) + center,
+								Vector3(0, y - 8 + h,  x - 8) + center,
+								Vector3(0, y - 8 + h,  x - 8 + w) + center,
+								Vector3(0, y - 8,  x - 8 + w) + center, mask[n]).getSurface();
+						break;
+					case EAST:
+						out += Face(Vector3(y - 8,  x - 8, 0) + center,
+								Vector3(y - 8 + h,  x - 8, 0) + center,
+								Vector3(y - 8 + h,  x - 8 + w, 0) + center,
+								Vector3(y - 8,  x - 8 + w, 0) + center, mask[n]).reverse().getSurface();
+						break;
+					case WEST:
+						out += Face(Vector3(y - 8,  x - 8, 0) + center,
+								Vector3(y - 8 + h,  x - 8, 0) + center,
+								Vector3(y - 8 + h,  x - 8 + w, 0) + center,
+								Vector3(y - 8,  x - 8 + w, 0) + center, mask[n]).getSurface();
+						break;
 					}
-					//output.push_back({(float) y, (float) x, (float) h, (float) w, mask[n]}); // names were messed up so fixing the order here
-					//gout << "(" << y << ", " << x << ") sized " << h << "x" << w << endl;
 
 	                // We zero out the mask
 	                for(int l = 0; l < h; ++l)
@@ -283,41 +295,14 @@ Surface Surface::GreedyMeshLayer(std::vector<Face> faces, Direction dir, Vector3
 	            }
 	        }
 	    }
-
-		/*for(int x = 0; x < CHUNK_DIMENSIONS; x++){
-			for(int y = 0; y < CHUNK_DIMENSIONS; y++){
-				found = false;
-				for(Quad& q: output)
-					if(within(q, x - 8, y - 8)){
-						gout << std::setw(4) << q.i;
-						found = true;
-						break;
-					}
-				if(!found)
-					gout << std::setw(4) << '.';
-			}
-			gout << endl;
-		}*/
-
-		//gout << output.size() << endl;
-
-		//for(Quad& q: output){
-		//	q.x -= 8; q.y -= 8;
-		//	out
-		//}
 	}
 	return out;
-
-	/*Surface out;
-	if(faces.size())
-		for (Face& f: faces)
-			out.append(f.getSurface());
-	return out;*/
 }
 
 // Converts the surface into a wireframe representation
 Spatial* Surface::getWireframe(){
 	Spatial* out = Spatial::_new();
+	out->set_name("Wireframe");
 	for(int i = 0; i < indecies.size(); i += 3){
 		SurfaceTool* line = SurfaceTool::_new();
 		Vector3 normal = norms[indecies[i]].normalized() / 10000;

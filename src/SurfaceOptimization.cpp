@@ -33,24 +33,9 @@ void SurfaceOptimization::_ready(){
         iarchive load(is);
         load(*c);
     }
-//    c->rebuildMesh();
-//    c->buildWireframe();
+    c->rebuildMesh();
+	gout << c->get_mesh()->get_faces().size() / 3 << " faces originally" << endl;
+    c->buildWireframe();
 
-    gout << String("res://icon.png").get_file() << endl;
-
-	int level = 0;
-	std::vector<Face> faces = c->getLayerFaces(BOTTOM, level);
-	gout << faces.size() << endl;
-    Surface surf;
-    //for(int level = 0; level <= 16; level++){
-        surf += Surface::GreedyMeshLayer(faces, BOTTOM, Vector3(0, 0, 0));
-    //}
-
-    this->add_child(surf.getWireframe());
-	Surface s2;
-	if(faces.size())
-		for (Face& f: faces)
-			s2.append(f.getSurface());
-    this->set_mesh(s2.getMesh());
     add_child(c, true);
 }

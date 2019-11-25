@@ -65,7 +65,7 @@ public:
 	Surface& operator +=(Surface&& other) {return *this += other; }
 
 	// Constructs a surface from a list of contiguous, coplanar, faces
-	static Surface GreedyMeshLayer(std::vector<Face> faces, Direction dir, Vector3 center);
+	static Surface GreedyMeshCoplanar(std::vector<Face> faces, Direction dir, Vector3 center);
 	// Converts the surface into a mesh
 	ArrayMesh* getMesh(ArrayMesh* mesh = nullptr);
 	// Converts the surface into a wireframe representation
@@ -197,8 +197,7 @@ public:
 
 	// Function used to check if two edges share a point
 	bool sharePoint(const Edge& other) const {
-		if(&tail.point && &tip.point && &other.tail.point && &other.tip.point) // confirm the points all have valid memory adresses
-			if(tail.point == other.tail.point || tail.point == other.tip.point || tip.point == other.tail.point || tip.point == other.tip.point)
+		if(tail.point == other.tail.point || tail.point == other.tip.point || tip.point == other.tail.point || tip.point == other.tip.point)
 				return true;
 		return false;
 	}
