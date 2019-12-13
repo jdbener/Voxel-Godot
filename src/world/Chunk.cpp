@@ -57,9 +57,9 @@ void VoxelInstance::init(int level /*= SUBCHUNK_LEVELS*/, bool originalCall /*= 
             //subVoxels[i].parent = this; // Mark this sublevel as the parent of the child sublevels
             subVoxels[i].init(level - 1, false);
         }
-    // If we are dealing with leaf nodes... load an air block
-    } else
-        blockData = BlockDatabase::getSingleton()->getBlock(Blocks::AIR);
+    }
+	// load an air block
+	blockData = BlockDatabase::getSingleton()->getBlock(Blocks::AIR);
 
     #warning not working?
     // If this was the original call recalculate
@@ -298,9 +298,12 @@ void VoxelInstance::calculateVisibility(){
     if(!v)\
         flags |= flag;\
         /*flags = flags & ~flag;*/\
-    else if(v->blockData->checkFlag(BlockData::TRANSPARENT))\
-        flags = flags | flag;\
-    else\
+    else if(v->blockData){\
+		if(v->blockData->checkFlag(BlockData::TRANSPARENT))\
+        	flags = flags | flag;\
+		else\
+	        flags = flags & ~flag;\
+    } else\
         flags = flags & ~flag;\
     }
     // Distance to the center of the next voxel
@@ -496,6 +499,7 @@ void Chunk::buildOptimizedMesh(int levelOfDetail){
 		}
 	set_mesh(surf.getMesh());
 	gout << "optimized to "  << get_mesh()->get_faces().size() / 3 << " faces" << endl;
+	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	buildWireframe();
 }
 
@@ -503,6 +507,7 @@ void Chunk::buildOptimizedMesh(int levelOfDetail){
 void Chunk::buildWireframe(){
 	Surface surf;
 	PoolVector3Array verts = get_mesh()->get_faces();
+	gout << get_mesh()->get_faces().size() / 3 << endl;
 	for(int i = 0; i < verts.size(); i += 3)
 		surf += Face(verts[i], verts[i + 1], verts[i + 2]).getSurface();
 

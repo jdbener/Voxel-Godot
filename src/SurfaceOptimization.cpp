@@ -20,19 +20,9 @@ void SurfaceOptimization::_ready(){
 
     ChunkMap* map = ChunkMap::_new();
     add_child(map);
-    {
-        std::ofstream os("test.chunk.json", std::ios::binary);
-        oarchive save(os);
-        save(*map->chunk);
-    }
-
-    Chunk* c = Chunk::_new();
-    c->initalize(map);
-    {
-        std::ifstream is("test.chunk.json", std::ios::binary);
-        iarchive load(is);
-        load(*c);
-    }
+	
+	Chunk* c = map->chunk[1];
+	gout << c->flags << endl;
     c->rebuildMesh();
 	gout << c->get_mesh()->get_faces().size() / 3 << " faces originally" << endl;
     c->buildWireframe();
